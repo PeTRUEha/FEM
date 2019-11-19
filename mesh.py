@@ -214,3 +214,34 @@ class Element:
         eps = matrix(np.array(self.values['strain'])).T
         sigma = D * eps
         self.values['stress'] = sigma.T.reshape(-1, ).tolist()[0]
+
+
+def probe_location_from_nodes(kind, x, y):
+    for e in Element.get.values():
+        if e.covers(x, y):
+            return e.probe_location_from_nodes(kind, x, y)
+    return np.nan
+
+
+def probe_location_from_element(kind, x, y):
+    for e in Element.get.values():
+        if e.covers(x, y):
+            return e.probe_location_from_element(kind, x, y)
+    return np.nan
+
+
+def local_stiffness(element):
+    """ Возвращает локальную матрицу жёсткости элемента,
+    iй координате в матрице соответствует iй узел в списке узлов элемента"""
+    n = element.nodes
+    x1, x2, x3 = n[0].x, n[1].x, n[2].x
+    y1, y2, y3 = n[0].y, n[1].y, n[2].y
+    B = 0.5 / element.area * matrix([[y2 - y3, 0, y3 - y1, 0, y1 - y2, 0],
+                                     [0, x3 - x2, 0, x1 - x3, 0, x2 - x1],
+                                     [x3 - x2, y2 - y3, x1 - x3, y3 - y1, x2 - x1, y1 - y2]])
+
+    D = matrix([[LAMBDA + 2 * MU, LAMBDA, 0],
+                [LAMBDA, LAMBDA + 2 * MU, 0],
+                [0, 0, MU]])
+    K_local = element.area * B.T * D * B
+    return K_local

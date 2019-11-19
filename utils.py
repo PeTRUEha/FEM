@@ -15,7 +15,7 @@ def print_execution_time(name_to_show: str = ''):
             start = datetime.datetime.now()
             out = function(*args, **kwargs)
             end = datetime.datetime.now()
-            print(f'{name_to_show} time is {round((end - start).total_seconds(), 2)}s')
+            print(f'{name_to_show} took {round((end - start).total_seconds(), 2)}s')
             return out
         return wrapper
     return decorator
