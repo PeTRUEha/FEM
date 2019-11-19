@@ -9,235 +9,10 @@ import matplotlib.pyplot as plt
 
 from utils import *
 from constants import *
+from meshing import Node, Curve, Edge, Element
 
 
 FILENAME = 'meshes\\donut5.inp'
-
-
-class Node:
-    get = dict()
-
-    def __init__(self, ID, x, y, z=0):
-        self.ID = ID
-        self.x = x
-        self.y = y
-        self.z = z
-        self.elements = []
-        self.values = {}  # заполняется при инициализации элементов
-        Node.get.update({self.ID: self})
-
-    def __str__(self):
-        return 'node {}:\n({}, {}, {})\n'.format(self.ID, self.x, self.y, self.z)
-
-
-class Edge:
-    get = dict()
-
-    def __init__(self, node1, node2, element):
-        """ID узлов на вход подаются упорядоченными по возрастанию,
-        вместо конструктора рекомендуется использовать add_edge_info"""
-
-        self.ID = (node1.ID, node2.ID)
-        self.nodes = [node1, node2]
-        self.elements = [element]
-        self.length = self.get_len()
-
-        Edge.get.update({self.ID: self})
-        element.edges.append(self)
-
-    def add_edge_info(node1, node2, element):
-        ID = (min(node1.ID, node2.ID), max(node1.ID, node2.ID))
-        if ID in Edge.get:
-            Edge.get[ID].elements.append(element)
-            element.edges.append(Edge.get[ID])
-        else:
-            Edge(Node.get[ID[0]],
-                 Node.get[ID[1]],
-                 element)
-
-    def get_centre(self):
-        a = self.nodes[0]
-        b = self.nodes[1]
-        centre = ((a.x + b.x) / 2, (a.y + b.y) / 2)
-        return centre
-
-    def get_inner_normal(self):
-        '''находит для граничных элементов нормаль к границе, смотрящую внутрь'''
-        a = self.nodes[0]
-        b = self.nodes[1]
-        # узел элемента, не находящийся на этом ребре
-        other = (set(self.elements[0].nodes) - {a, b}).pop()
-
-        v = np.array([-b.y + a.y, b.x - a.x])
-        n = v / np.linalg.norm(v)
-
-        v1 = np.array([other.x - a.x, other.y - a.y])
-
-        if np.dot(n, v1) > 0:
-            # print('a = {}\nb = {}\nb - a = {}\nother = {}\nn = {}'.format((a.x, a.y), (b.x, b.y), ((b.x - a.x) , (b.y-a.y)), (other.x, other.y), (n[0], n[1])))
-            return n
-        else:
-            # print('a = {}\nb = {}\nb - a = {}\nother = {}\nn = {}'.format((a.x, a.y), (b.x, b.y), ((b.x - a.x) , (b.y-a.y)), (other.x, other.y), (n[0], n[1])))
-            # print('reversing')
-            return -1 * n
-
-    def is_border(self):
-        if len(self.elements) == 1:
-            return True
-        else:
-            return False
-
-    def get_len(self):
-        a = self.nodes[0]
-        b = self.nodes[1]
-        return math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2)
-
-    def get_boundary_condition(self):
-        c = self.get_centre()
-        if self.curve.name == 1:
-            return P1(c[0], c[1])
-        elif self.curve.name == 3:
-            return P2(c[0], c[1])
-        else:
-            return 0
-
-
-class Curve:
-    get = dict()
-
-    def __init__(self, name):
-        self.name = name
-        Curve.get.update({name: self})
-        self.edges = []
-
-    def add(self, edge):
-        edge.curve = self
-        self.edges.append(edge)
-
-
-class Element:
-    """Конечный элемент первого порядка. Предполагается, что
-    к моменту инициализации словарь с узлами уже есть и
-    назначен в статическую переменную get"""
-
-    get = dict()
-
-    def __init__(self, ID, node_ids):
-        self.ID = ID
-        self.nodes = [Node.get[node_id] for node_id in list(node_ids)]
-        self.edges = list()
-        Element.get.update({self.ID: self})
-        self.values = {}
-
-        self.area = self.calculate_area()
-
-        for i in range(-1, len(self.nodes) - 1, 1):
-            Edge.add_edge_info(self.nodes[i], self.nodes[i + 1], self)
-
-        for node in self.nodes:
-            node.elements.append(self)
-
-    def calculate_area(self):
-        nodes = self.nodes
-        if len(nodes) == 3:
-            return triangle_area_2d(*nodes)
-        else:
-            raise WrongElementTypeError('All elements have to be triangular')
-
-    def __str__(self):
-        return 'element {}:\nnodes: {}\n'.format(self.ID, [node.ID for node in self.nodes])
-
-    def inverse_jacobian(self, ksi=0, eta=0):
-        """ksi = Ax + b, это A"""
-        if len(self.nodes) == 3:
-            n = self.nodes
-            x0, x1, x2, y0, y1, y2 = n[0].x, n[1].x, n[2].x, n[0].y, n[1].y, n[2].y
-            denominator = (x1 * y0 - x2 * y0 - x0 * y1 + x2 * y1 + x0 * y2 - x1 * y2)
-            a11 = -(y1 - y2) / denominator
-            a12 = (x1 - x2) / denominator
-            a21 = -(-y0 + y2) / denominator
-            a22 = -(x0 - x2) / denominator
-            return matrix([[a11, a12], [a21, a22]])
-
-    def intercept(self):
-        """ksi = Ax + b, это b"""
-        if len(self.nodes) == 3:
-            n = self.nodes
-            x0, x1, x2, y0, y1, y2 = n[0].x, n[1].x, n[2].x, n[0].y, n[1].y, n[2].y
-            denominator = (x1 * y0 - x2 * y0 - x0 * y1 + x2 * y1 + x0 * y2 - x1 * y2)
-            b1 = (x2 * y1 - x1 * y2) / denominator
-            b2 = -(x2 * y0 - x0 * y2) / denominator
-
-            return matrix([[b1], [b2]])
-
-    def get_ksi_eta(self, x, y):
-        A = self.inverse_jacobian()
-        b = self.intercept()
-        ksiEta = (A * [[x], [y]] + b)
-        ksi, eta = float(ksiEta[0][0]), float(ksiEta[1][0])
-        return ksi, eta
-
-    def get_form_function(self, node, x, y):
-        (ksi, eta) = self.get_ksi_eta(x, y)
-        index = self.nodes.index(node)
-        res = Ntr[index](ksi, eta)
-        return res
-
-    def covers(self, x, y):
-        [n1, n2, n3] = self.nodes
-        p = (x, y)
-        p1, p2, p3 = (n1.x, n1.y), (n2.x, n2.y), (n3.x, n3.y)
-        if (is_to_the_left(p, p1, p2) * is_to_the_left(p3, p1, p2) >= 0
-                and is_to_the_left(p, p1, p3) * is_to_the_left(p2, p1, p3) >= 0
-                and is_to_the_left(p, p2, p3) * is_to_the_left(p1, p2, p3) >= 0):
-            return True
-        else:
-            return False
-    #  TODO: leave just one get_value
-    def get_value(self, kind, x, y):
-        return sum([self.get_form_function(node, x, y) * node.values[kind]
-                    for node in self.nodes])
-
-    def getValue1(self, kind, x, y):
-        return self.values[kind]
-
-    def get_strain(self):
-        n = self.nodes
-        x1, x2, x3 = n[0].x, n[1].x, n[2].x
-        y1, y2, y3 = n[0].y, n[1].y, n[2].y
-        B = 0.5 / self.area * matrix([[y2 - y3, 0, y3 - y1, 0, y1 - y2, 0],
-                                      [0, x3 - x2, 0, x1 - x3, 0, x2 - x1],
-                                      [x3 - x2, y2 - y3, x1 - x3, y3 - y1, x2 - x1, y1 - y2]])
-        u1, u2, u3 = [n[i].values['displacement'][0] for i in range(3)]
-        v1, v2, v3 = [n[i].values['displacement'][1] for i in range(3)]
-
-        U = matrix([[u1], [v1], [u2], [v2], [u3], [v3]])
-        Epsilon = B * U
-        self.values['strain'] = Epsilon.T.reshape(-1, ).tolist()[0]
-
-    def get_stress(self):
-        D = matrix([[LAMBDA + 2 * MU, LAMBDA, 0],
-                    [LAMBDA, LAMBDA + 2 * MU, 0],
-                    [0, 0, MU]])
-        eps = matrix(np.array(self.values['strain'])).T
-        sigma = D * eps
-        self.values['stress'] = sigma.T.reshape(-1, ).tolist()[0]
-
-
-def triangle_area_2d(v1, v2, v3):
-    M = matrix([[v1.x - v3.x, v1.y - v3.y],
-                [v2.x - v3.x, v2.y - v3.y]])
-    area = abs(linalg.det(M) / 2)
-    return area
-
-def is_to_the_left(p, p1, p2):
-    """ if positive is to the left, if zero is on, if negative is to the right"""
-    x, y = p
-    x1, y1 = p1
-    x2, y2 = p2
-    D = (x - x1) * (y2 - y1) - (y - y1) * (x2 - x1)
-    return -D
-
 
 def read_2d_mesh(filename):
     """Считывает данные о сетке из файла .inp, перенумеровывая
@@ -251,7 +26,6 @@ def read_2d_mesh(filename):
 
         while line:
             if 'N O D E S' in line:
-                print('found N O D E S !')
                 nodes_found = 1
                 break
             line = next(file, "")
@@ -278,14 +52,12 @@ def read_2d_mesh(filename):
                                    match.group(3)])
                 Node(n_new, x, y)
             else:
-                print('finished reading nodes')
                 break
 
             line = next(file)
 
         while line:
             if 'E L E M E N T S' in line:
-                print('found E L E M E N T S!')
                 elements_found = 1
                 break
             line = next(file, "")
@@ -300,7 +72,6 @@ def read_2d_mesh(filename):
         while line:
             items = line.split(',')
             if len(items) == 1:
-                print('finished reading elements')
                 break
             else:
                 n = int(items[0])
@@ -311,17 +82,17 @@ def read_2d_mesh(filename):
             line = next(file)
 
 
-def probe_location(kind, x, y):
+def probe_location_from_nodes(kind, x, y):
     for e in Element.get.values():
         if e.covers(x, y):
-            return e.get_value(kind, x, y)
+            return e.probe_location_from_nodes(kind, x, y)
     return np.nan
 
 
-def probe_location1(kind, x, y):
+def probe_location_from_element(kind, x, y):
     for e in Element.get.values():
         if e.covers(x, y):
-            return e.getValue1(kind, x, y)
+            return e.probe_location_from_element(kind, x, y)
     return np.nan
 
 
@@ -343,9 +114,9 @@ def local_stiffness(element):
 
 
 def plot_over_line(line=linspace(0, 2, 50)):
-    values = [probe_location('displacement', x, 0) for x in line]
-    eps = [probe_location1('strain', x, 0) for x in line]
-    sigma = [probe_location1('stress', x, 0) for x in line]
+    values = [probe_location_from_nodes('displacement', x, 0) for x in line]
+    eps = [probe_location_from_element('strain', x, 0) for x in line]
+    sigma = [probe_location_from_element('stress', x, 0) for x in line]
 
     x_values = [value[0] if not type(value) == float else math.nan
                 for value in values]
@@ -375,8 +146,8 @@ def visualize():
     X = linspace(0, 2, 50)
     Y = linspace(0, 2, 50)
 
-    values = [[probe_location('displacement', x, y) for x in X] for y in Y]
-    eps = [[probe_location1('strain', x, y) for x in X] for y in Y]
+    values = [[probe_location_from_nodes('displacement', x, y) for x in X] for y in Y]
+    eps = [[probe_location_from_element('strain', x, y) for x in X] for y in Y]
 
     x_values = [[value[0] if not type(value) == float else math.nan for value in values[i]] for i in range(50)]
     y_values = [[value[1] if not type(value) == float else math.nan for value in values[i]] for i in range(50)]
@@ -474,42 +245,40 @@ def set_curves():
                 Curve.get[3].add(edge)
 
 
-# Граничные условия (давление):
-P1 = lambda x, y: -1  # внутри
-P2 = lambda x, y: 2  # снаружи
+@print_execution_time('Mesh configuration')
+def prepare_mesh():
+    read_2d_mesh(FILENAME)
+    set_curves()
 
-# Считывание сетки из файла
-read_2d_mesh(FILENAME)
-set_curves()
 
+@print_execution_time('Equation system assembly')
+def assemble_equation_system():
+    # Заполнение матрицы жёсткости
+    K = global_stiffness()
+    # Заполнение правой части
+    R = rhs()
+    # Применяем фиксирующие граничные условия
+    for edge in Curve.get[2].edges:
+        fix_in_place(K, R, edge.nodes[0], 'x')
+        fix_in_place(K, R, edge.nodes[1], 'x')
+
+    for edge in Curve.get[4].edges:
+        fix_in_place(K, R, edge.nodes[0], 'y')
+        fix_in_place(K, R, edge.nodes[1], 'y')
+    return K, R
+
+
+def calculate_array_values(U):
+    for i in range(len(Node.get)):
+        Node.get[i].values['displacement'] = np.array([U[2 * i], U[2 * i + 1]])
+
+    for el in Element.get.values():
+        el.get_strain()
+        el.get_stress()
+
+
+prepare_mesh()
 N = len(Node.get)
-# Заполнение матрицы жёсткости
-K = global_stiffness()
-
-# Заполнение правой части
-R = rhs()
-
-# Применяем фиксирующие граничные условия
-for edge in Curve.get[2].edges:
-    fix_in_place(K, R, edge.nodes[0], 'x')
-    fix_in_place(K, R, edge.nodes[1], 'x')
-
-for edge in Curve.get[4].edges:
-    fix_in_place(K, R, edge.nodes[0], 'y')
-    fix_in_place(K, R, edge.nodes[1], 'y')
-
-# plot_stiffness(K)
-# Решение системы KU = R
-U = spsolve(K, R)
-
-for i in range(len(Node.get)):
-    Node.get[i].values['displacement'] = np.array([U[2 * i], U[2 * i + 1]])
-
-for el in Element.get.values():
-    el.get_strain()
-    el.get_stress()
-
-# Визуализация результатов
-#plot_over_line()
-visualize()
-
+K, R = assemble_equation_system()
+U = print_execution_time("System solution with spsolve")(spsolve)(K, R)
+calculate_array_values(U)
