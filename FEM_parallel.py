@@ -8,6 +8,7 @@ from scipy.sparse.linalg import spsolve
 import matplotlib.pyplot as plt
 
 from utils import *
+from constants import *
 
 
 FILENAME = 'meshes\\donut5.inp'
@@ -341,8 +342,7 @@ def local_stiffness(element):
     return K_local
 
 
-def visualization():
-    line = linspace(0, 2, 50)
+def plot_over_line(line=linspace(0, 2, 50)):
     values = [probe_location('displacement', x, 0) for x in line]
     eps = [probe_location1('strain', x, 0) for x in line]
     sigma = [probe_location1('stress', x, 0) for x in line]
@@ -358,22 +358,20 @@ def visualization():
     sigma22_values = [value[1] if not type(value) == float else math.nan
                       for value in sigma]
 
-    plt.plot(line, x_values)
-    plt.title('displacement x')
-    plt.show()
-    plt.plot(line, y_values)
-    plt.title('displacement y')
-    plt.show()
-    plt.plot(line, eps11_values)
-    plt.title('eps11')
-    plt.show()
-    plt.plot(line, sigma11_values)
-    plt.title('sigma11')
-    plt.show()
-    plt.plot(line, sigma22_values)
-    plt.title('sigma22')
+    plot_graph(line, x_values, 'displacement x')
+    plot_graph(line, y_values, 'displacement y')
+    plot_graph(line, eps11_values, 'eps11')
+    plot_graph(line, sigma11_values, 'sigma11')
+    plot_graph(line, sigma22_values, 'sigma22')
+
+
+def plot_graph(line, values, title):
+    plt.plot(line, values)
+    plt.title(title)
     plt.show()
 
+
+def visualize():
     X = linspace(0, 2, 50)
     Y = linspace(0, 2, 50)
 
@@ -386,34 +384,18 @@ def visualization():
     eps11 = [[value[0] if not type(value) == float else math.nan for value in eps[i]] for i in range(50)]
     eps22 = [[value[1] if not type(value) == float else math.nan for value in eps[i]] for i in range(50)]
 
-    sp2 = plt.subplot()
-    plt.title("x_displacement")
-    c_x = sp2.pcolor(X, Y, x_values, cmap='plasma', vmin=np.nanmin(x_values), vmax=np.nanmax(x_values))
+    visualize_array(x_values, 'x_displacement', X=X, Y=Y)
+    visualize_array(y_values, 'y_displacement', X=X, Y=Y)
+    visualize_array(abs_values, 'abs_displacement', X=X, Y=Y)
+    visualize_array(eps11, 'eps11', X=X, Y=Y)
+    visualize_array(eps22, 'eps22', X=X, Y=Y)
+
+
+def visualize_array(values, title, X=linspace(0, 2, 50), Y=linspace(0, 2, 50)):
+    sp = plt.subplot()
+    plt.title(title)
+    c_x = sp.pcolor(X, Y, values, cmap='plasma', vmin=np.nanmin(values), vmax=np.nanmax(values))
     plt.colorbar(c_x)
-    plt.show()
-
-    sp1 = plt.subplot()
-    plt.title("y_displacement")
-    c_y = sp1.pcolor(X, Y, y_values, cmap='plasma', vmin=np.nanmin(y_values), vmax=np.nanmax(y_values))
-    plt.colorbar(c_y)
-    plt.show()
-
-    sp3 = plt.subplot()
-    plt.title("abs_displacement")
-    c_abs = sp3.pcolor(X, Y, abs_values, cmap='plasma', vmin=np.nanmin(abs_values), vmax=np.nanmax(abs_values))
-    plt.colorbar(c_abs)
-    plt.show()
-
-    sp4 = plt.subplot()
-    plt.title("eps11")
-    c_eps11 = sp4.pcolor(X, Y, eps11, cmap='plasma', vmin=np.nanmin(eps11), vmax=np.nanmax(eps11))
-    plt.colorbar(c_eps11)
-    plt.show()
-
-    sp5 = plt.subplot()
-    plt.title("eps22")
-    c_eps22 = sp5.pcolor(X, Y, eps22, cmap='plasma', vmin=np.nanmin(eps22), vmax=np.nanmax(eps22))
-    plt.colorbar(c_eps22)
     plt.show()
 
 
@@ -448,15 +430,15 @@ def rhs():
         for edge in element.edges:
             if edge.is_border():
                 n = edge.get_inner_normal()
-                boundaryCondition = edge.get_boundary_condition()
+                boundary_condition = edge.get_boundary_condition()
                 for node in edge.nodes:
-                    R[2 * node.ID] += boundaryCondition * n[0] * edge.length
-                    R[2 * node.ID + 1] += boundaryCondition * n[1] * edge.length
+                    R[2 * node.ID] += boundary_condition * n[0] * edge.length
+                    R[2 * node.ID + 1] += boundary_condition * n[1] * edge.length
 
     return R / 2  # не знаю, почему на 2
 
 
-def fix(K, R, node, how='x'):
+def fix_in_place(K, R, node, how='x'):
     for i in range(2 * N):
         if how == 'x':
             K[2 * node.ID, i] = 0
@@ -492,23 +474,6 @@ def set_curves():
                 Curve.get[3].add(edge)
 
 
-""" cписок функций формы для равностороннего треугольника с высотой один и координатами
-- высотами до первой и второй стороны"""
-
-Ntr = [lambda ksi, eta: ksi,
-       lambda ksi, eta: eta,
-       lambda ksi, eta: 1 - ksi - eta]
-
-dNtr = [[1, 0],
-        [0, 1],
-        [-1, -1]]
-
-RSplit = 1.5  # радиус для отличения внешней и внутренней границы
-F = 0  # массовая сила
-
-LAMBDA = 100
-MU = 80
-
 # Граничные условия (давление):
 P1 = lambda x, y: -1  # внутри
 P2 = lambda x, y: 2  # снаружи
@@ -526,12 +491,12 @@ R = rhs()
 
 # Применяем фиксирующие граничные условия
 for edge in Curve.get[2].edges:
-    fix(K, R, edge.nodes[0], 'x')
-    fix(K, R, edge.nodes[1], 'x')
+    fix_in_place(K, R, edge.nodes[0], 'x')
+    fix_in_place(K, R, edge.nodes[1], 'x')
 
 for edge in Curve.get[4].edges:
-    fix(K, R, edge.nodes[0], 'y')
-    fix(K, R, edge.nodes[1], 'y')
+    fix_in_place(K, R, edge.nodes[0], 'y')
+    fix_in_place(K, R, edge.nodes[1], 'y')
 
 # plot_stiffness(K)
 # Решение системы KU = R
@@ -545,5 +510,6 @@ for el in Element.get.values():
     el.get_stress()
 
 # Визуализация результатов
-visualization()
+#plot_over_line()
+visualize()
 
