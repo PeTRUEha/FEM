@@ -4,7 +4,7 @@ import numpy as np
 from numpy import matrix
 
 from utils import triangle_area_2d, is_to_the_left, WrongElementTypeError
-from constants import LAMBDA, MU, Ntr, P1, P2
+from constants import LAMBDA, MU, Ntr
 
 
 class Node:
@@ -88,12 +88,7 @@ class Edge:
 
     def get_boundary_condition(self):
         c = self.get_centre()
-        if self.curve.name == 1:
-            return P1(c[0], c[1])
-        elif self.curve.name == 3:
-            return P2(c[0], c[1])
-        else:
-            return 0
+        return self.curve.boundary_condition(c[0], c[1])
 
 
 class Curve:
@@ -103,6 +98,8 @@ class Curve:
         self.name = name
         Curve.get.update({name: self})
         self.edges = []
+        # normal pressure on the curve
+        self.boundary_condition = lambda x, y: 0
 
     def add(self, edge):
         edge.curve = self

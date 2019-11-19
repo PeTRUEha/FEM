@@ -2,8 +2,8 @@ import re
 import math
 
 import numpy as np
-from numpy import linalg, matrix, linspace
-from scipy import integrate, sparse
+from numpy import linspace
+from scipy import sparse
 from scipy.sparse.linalg import spsolve
 import matplotlib.pyplot as plt
 
@@ -11,8 +11,6 @@ from utils import *
 from constants import *
 from meshing import Node, Curve, Edge, Element
 
-
-FILENAME = 'meshes\\donut5.inp'
 
 def read_2d_mesh(filename):
     """Считывает данные о сетке из файла .inp, перенумеровывая
@@ -118,16 +116,11 @@ def plot_over_line(line=linspace(0, 2, 50)):
     eps = [probe_location_from_element('strain', x, 0) for x in line]
     sigma = [probe_location_from_element('stress', x, 0) for x in line]
 
-    x_values = [value[0] if not type(value) == float else math.nan
-                for value in values]
-    y_values = [value[1] if not type(value) == float else math.nan
-                for value in values]
-    eps11_values = [value[0] if not type(value) == float else math.nan
-                    for value in eps]
-    sigma11_values = [value[0] if not type(value) == float else math.nan
-                      for value in sigma]
-    sigma22_values = [value[1] if not type(value) == float else math.nan
-                      for value in sigma]
+    x_values = [value[0] if not type(value) == float else math.nan for value in values]
+    y_values = [value[1] if not type(value) == float else math.nan for value in values]
+    eps11_values = [value[0] if not type(value) == float else math.nan for value in eps]
+    sigma11_values = [value[0] if not type(value) == float else math.nan for value in sigma]
+    sigma22_values = [value[1] if not type(value) == float else math.nan for value in sigma]
 
     plot_graph(line, x_values, 'displacement x')
     plot_graph(line, y_values, 'displacement y')
@@ -226,7 +219,7 @@ def fix_in_place(K, R, node, how='x'):
         R[2 * node.ID + 1] = 0
 
 
-def set_curves():
+def create_curves():
     Curve(1)  # внутренняя поверхность
     Curve(2)  # поверхность слева-сверху
     Curve(3)  # внешняя поверхность
@@ -248,7 +241,9 @@ def set_curves():
 @print_execution_time('Mesh configuration')
 def prepare_mesh():
     read_2d_mesh(FILENAME)
-    set_curves()
+    create_curves()
+    Curve.get[1].boundary_condition = P1
+    Curve.get[3].boundary_condition = P2
 
 
 @print_execution_time('Equation system assembly')
@@ -268,6 +263,7 @@ def assemble_equation_system():
     return K, R
 
 
+@print_execution_time('Writing arrays into elements and nodes')
 def calculate_array_values(U):
     for i in range(len(Node.get)):
         Node.get[i].values['displacement'] = np.array([U[2 * i], U[2 * i + 1]])
@@ -282,3 +278,4 @@ N = len(Node.get)
 K, R = assemble_equation_system()
 U = print_execution_time("System solution with spsolve")(spsolve)(K, R)
 calculate_array_values(U)
+plot_over_line()
