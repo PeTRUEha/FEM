@@ -3,7 +3,7 @@ import re
 from constants import RSplit, FILENAME, P1, P2
 from mesh import Node, Element, Curve, Edge
 from utils import print_execution_time
-
+import networkx as nx
 
 def read_2d_mesh(filename):
     """Считывает данные о сетке из файла .inp, перенумеровывая

@@ -1,11 +1,14 @@
 import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
+import networkx as nx
+import matplotlib.pyplot as plt
 
 from geometry_configuration import fix_in_place, configure_geometry
 from utils import *
-from mesh import Node, Curve, Element, local_stiffness
+from mesh import Node, Curve, Element, local_stiffness, build_graph
 from plots import plot_over_line
+
 
 
 def global_stiffness():
@@ -64,6 +67,12 @@ def calculate_array_values(U):
 
 
 configure_geometry()
+graph = build_graph()
+colors = nx.greedy_color(graph)
+print(colors)
+nx.draw(graph, node_size=100, labels=colors, font_color='black')
+plt.show()
+
 N = len(Node.get)
 K, R = assemble_equation_system()
 U = print_execution_time("System solution with spsolve")(spsolve)(K, R)

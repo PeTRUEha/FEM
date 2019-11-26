@@ -2,8 +2,11 @@ import math
 
 import numpy as np
 from numpy import matrix
+import networkx as nx
+import itertools
+import matplotlib.pyplot as plt
 
-from utils import triangle_area_2d, is_to_the_left, WrongElementTypeError
+from utils import triangle_area_2d, is_to_the_left, WrongElementTypeError, print_execution_time
 from constants import LAMBDA, MU, Ntr
 
 
@@ -112,6 +115,7 @@ class Element:
     назначен в статическую переменную get"""
 
     get = dict()
+    graph = nx.Graph()
 
     def __init__(self, ID, node_ids):
         self.ID = ID
@@ -245,3 +249,12 @@ def local_stiffness(element):
                 [0, 0, MU]])
     K_local = element.area * B.T * D * B
     return K_local
+
+
+@print_execution_time("Graph construction")
+def build_graph():
+    graph = nx.Graph()
+    for node in Node.get.values():
+        for element1, element2 in set(itertools.combinations(set(node.elements), 2)):
+            graph.add_edge(element1.ID, element2.ID)
+    return graph

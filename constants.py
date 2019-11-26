@@ -20,4 +20,4 @@ F = 0  # массовая сила
 
 LAMBDA = 100
 MU = 80
-FILENAME = 'meshes\\donut5.inp'
+FILENAME = 'meshes\\donut3.inp'
