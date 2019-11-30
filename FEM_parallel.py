@@ -3,6 +3,8 @@ from scipy import sparse
 from scipy.sparse.linalg import spsolve
 import networkx as nx
 import matplotlib.pyplot as plt
+from typing import Dict
+from multiprocessing.pool import Pool
 
 from geometry_configuration import fix_in_place, configure_geometry
 from utils import *
@@ -10,18 +12,42 @@ from mesh import Node, Curve, Element, local_stiffness, build_graph
 from plots import plot_over_line
 
 
+class GlobalStiffness(sparse.lil_matrix):
+    def update(self, element: Element):
+        K_local = local_stiffness(element)
+        for i, j in np.ndindex((3, 3)):
+            self[2 * element.nodes[i].ID, 2 * element.nodes[j].ID] += K_local[2 * i, 2 * j]
+            self[2 * element.nodes[i].ID + 1, 2 * element.nodes[j].ID] += K_local[2 * i + 1, 2 * j]
+            self[2 * element.nodes[i].ID, 2 * element.nodes[j].ID + 1] += K_local[2 * i, 2 * j + 1]
+            self[2 * element.nodes[i].ID + 1, 2 * element.nodes[j].ID + 1] += K_local[2 * i + 1, 2 * j + 1]
+
 
 def global_stiffness():
     N = len(Node.get)
-    K = sparse.lil_matrix((2 * N, 2 * N))
+    K = GlobalStiffness((2 * N, 2 * N))
     for element in Element.get.values():
-        K_local = local_stiffness(element)
-        for i, j in np.ndindex((3, 3)):
-            K[2 * element.nodes[i].ID, 2 * element.nodes[j].ID] += K_local[2 * i, 2 * j]
-            K[2 * element.nodes[i].ID + 1, 2 * element.nodes[j].ID] += K_local[2 * i + 1, 2 * j]
-            K[2 * element.nodes[i].ID, 2 * element.nodes[j].ID + 1] += K_local[2 * i, 2 * j + 1]
-            K[2 * element.nodes[i].ID + 1, 2 * element.nodes[j].ID + 1] += K_local[2 * i + 1, 2 * j + 1]
+        K.update(element)
     return K
+
+
+def parallel_global_stiffness(colors: Dict[int, int]) -> GlobalStiffness:
+    N = len(Node.get)
+    K = GlobalStiffness((2 * N, 2 * N))
+    for one_color_elements in invert_dict(colors).values():
+        with Pool(1) as pool:
+            pool.map(GlobalStiffness.update, [(K, Element.get[element_n]) for element_n in one_color_elements])
+            pool.apply_async(GlobalStiffness.update, [(K, node) for node in one_color_elements])
+        # for element_number in one_color_elements:
+        #     K.update(Element.get[element_number])
+    return K
+
+
+def invert_dict(dictionary: Dict) -> Dict:
+    inv_map = {}
+    for k, v in dictionary.items():
+        inv_map[v] = inv_map.get(v, [])
+        inv_map[v].append(k)
+    return inv_map
 
 
 def rhs():
@@ -40,9 +66,10 @@ def rhs():
 
 
 @print_execution_time('Equation system assembly')
-def assemble_equation_system():
+def assemble_equation_system(colors):
     # Заполнение матрицы жёсткости
-    K = global_stiffness()
+    K = parallel_global_stiffness(colors)
+    #K = global_stiffness()
     # Заполнение правой части
     R = rhs()
     # Применяем фиксирующие граничные условия
@@ -65,16 +92,15 @@ def calculate_array_values(U):
         el.get_strain()
         el.get_stress()
 
+if __name__ == "__main__":
+    configure_geometry()
+    graph = build_graph()
+    colors = nx.greedy_color(graph)
+    #nx.draw(graph, node_size=100, labels=colors, font_color='black')
+    #plt.show()
 
-configure_geometry()
-graph = build_graph()
-colors = nx.greedy_color(graph)
-print(colors)
-nx.draw(graph, node_size=100, labels=colors, font_color='black')
-plt.show()
-
-N = len(Node.get)
-K, R = assemble_equation_system()
-U = print_execution_time("System solution with spsolve")(spsolve)(K, R)
-calculate_array_values(U)
-plot_over_line()
+    N = len(Node.get)
+    K, R = assemble_equation_system(colors)
+    U = print_execution_time("System solution with spsolve")(spsolve)(K, R)
+    calculate_array_values(U)
+    plot_over_line()

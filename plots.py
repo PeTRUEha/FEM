@@ -18,11 +18,11 @@ def plot_over_line(line=linspace(0, 2, 50)):
     sigma11_values = [value[0] if not type(value) == float else math.nan for value in sigma]
     sigma22_values = [value[1] if not type(value) == float else math.nan for value in sigma]
 
-    plot_graph(line, x_values, 'displacement x')
-    plot_graph(line, y_values, 'displacement y')
-    plot_graph(line, eps11_values, 'eps11')
+    # plot_graph(line, x_values, 'displacement x')
+    # plot_graph(line, y_values, 'displacement y')
+    # plot_graph(line, eps11_values, 'eps11')
     plot_graph(line, sigma11_values, 'sigma11')
-    plot_graph(line, sigma22_values, 'sigma22')
+    # plot_graph(line, sigma22_values, 'sigma22')
 
 
 def plot_graph(line, values, title):

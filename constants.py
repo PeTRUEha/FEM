@@ -17,7 +17,7 @@ dNtr = [[1, 0],
 
 RSplit = 1.5  # радиус для отличения внешней и внутренней границы
 F = 0  # массовая сила
-
+N_THREADS = 5
 LAMBDA = 100
 MU = 80
-FILENAME = 'meshes\\donut3.inp'
+FILENAME = 'meshes\\donut5.inp'
