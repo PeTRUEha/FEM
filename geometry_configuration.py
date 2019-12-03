@@ -5,61 +5,53 @@ from mesh import Node, Element, Curve, Edge
 from utils import print_execution_time
 import networkx as nx
 
-def read_2d_mesh(filename):
-    """Считывает данные о сетке из файла .inp, перенумеровывая
-    узлы от нуля"""
-    with open(filename, 'r') as file:
 
-        nodes_found = 0
-        elements_found = 0
+class MeshReader:
+    def __init__(self, file):
+        self.file = file
+        self.renumbering = {}
 
-        line = next(file)
+    def skip_lines(self, n_lines):
+        for i in range(n_lines):
+            next(self.file)
 
+    def read_2d_mesh(self):
+        """Считывает данные о сетке из файла .inp, перенумеровывая
+        узлы от нуля"""
+        self.skip_to("N O D E S")
+        self.skip_lines(1)  # пропускаем строку
+        self.read_nodes()
+        self.skip_to('E L E M E N T S')
+        self.skip_lines(1)  # пропускаем строку
+        self.read_elements()
+
+    def skip_to(self, string):
+        line = next(self.file)
         while line:
-            if 'N O D E S' in line:
-                nodes_found = 1
+            if string in line:
                 break
-            line = next(file, "")
+            line = next(self.file, "")
 
-        if not nodes_found:
-            print('Nodes not found')
-            quit()
-
-        line = next(file)  # пропускаем строку
-        line = next(file)
-
+    def read_nodes(self):
         nodes_count = 0
-        renumbering = dict()
-
+        line = next(self.file)
         while line:
             match = re.search(r'\s+(\S+),\s+(\S+),\s+(\S+\d),*\s+', line)
             if match:
                 n_old = int(match.group(1))
                 n_new = nodes_count
                 nodes_count += 1
-                renumbering.update({n_old: n_new})
+                self.renumbering.update({n_old: n_new})
 
                 x, y = map(float, [match.group(2),
                                    match.group(3)])
                 Node(n_new, x, y)
+                line = next(self.file)
             else:
                 break
 
-            line = next(file)
-
-        while line:
-            if 'E L E M E N T S' in line:
-                elements_found = 1
-                break
-            line = next(file, "")
-
-        if not elements_found:
-            print('Elements not found')
-            quit()
-
-        line = next(file)  # пропускаем строку
-        line = next(file)
-
+    def read_elements(self):
+        line = next(self.file)
         while line:
             items = line.split(',')
             if len(items) == 1:
@@ -67,11 +59,10 @@ def read_2d_mesh(filename):
             else:
                 n = int(items[0])
                 its_nodes = map(int, items[1:])
-                new_nodes = [renumbering[node] for node in its_nodes]
+                new_nodes = [self.renumbering[node] for node in its_nodes]
                 Element(n, new_nodes)
                 # print(new_element)
-            line = next(file)
-
+            line = next(self.file)
 
 def fix_in_place(K, R, node, how='x'):
     for i in range(2 * len(Node.get)):
@@ -111,7 +102,8 @@ def create_curves():
 
 @print_execution_time('Geometry configuration')
 def configure_geometry():
-    read_2d_mesh(FILENAME)
+    with open(FILENAME, 'r') as file:
+        MeshReader(file).read_2d_mesh()
     create_curves()
     Curve.get[1].boundary_condition = P1
     Curve.get[3].boundary_condition = P2
