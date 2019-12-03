@@ -10,15 +10,20 @@ from utils import triangle_area_2d, is_to_the_left, WrongElementTypeError, print
 from constants import LAMBDA, MU, Ntr
 
 
+class Mesh:
+    def __init__(self, nodes, elements):
+        self.nodes = nodes
+        self.elements = elements
+
+
 class Node:
     get = dict()
 
-    def __init__(self, ID, x, y, z=0):
+    def __init__(self, ID, x, y):
         self.ID = ID
         self.x = x
         self.y = y
-        self.z = z
-        self.elements = []
+        # self.elements = []
         self.values = {}  # заполняется при инициализации элементов
         Node.get.update({self.ID: self})
 
@@ -129,8 +134,8 @@ class Element:
         for i in range(-1, len(self.nodes) - 1, 1):
             Edge.add_edge_info(self.nodes[i], self.nodes[i + 1], self)
 
-        for node in self.nodes:
-            node.elements.append(self)
+        # for node in self.nodes:
+        #     node.elements.append(self)
 
     def calculate_area(self):
         nodes = self.nodes

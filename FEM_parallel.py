@@ -66,10 +66,10 @@ def rhs():
 
 
 @print_execution_time('Equation system assembly')
-def assemble_equation_system(colors):
+def assemble_equation_system():
     # Заполнение матрицы жёсткости
-    K = parallel_global_stiffness(colors)
-    #K = global_stiffness()
+    # K = parallel_global_stiffness()
+    K = global_stiffness()
     # Заполнение правой части
     R = rhs()
     # Применяем фиксирующие граничные условия
@@ -94,13 +94,13 @@ def calculate_array_values(U):
 
 if __name__ == "__main__":
     configure_geometry()
-    graph = build_graph()
-    colors = nx.greedy_color(graph)
-    #nx.draw(graph, node_size=100, labels=colors, font_color='black')
-    #plt.show()
-
+#    graph = build_graph()
+    # colors = nx.greedy_color(graph)
+    # nx.draw(graph, node_size=100, labels=colors, font_color='black')
+    # plt.show()
+    # exit(0)
     N = len(Node.get)
-    K, R = assemble_equation_system(colors)
+    K, R = assemble_equation_system()
     U = print_execution_time("System solution with spsolve")(spsolve)(K, R)
     calculate_array_values(U)
     plot_over_line()
