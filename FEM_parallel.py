@@ -8,9 +8,8 @@ from multiprocessing.pool import Pool
 
 from geometry_configuration import fix_in_place, configure_geometry
 from utils import *
-from mesh import Node, Curve, Element, local_stiffness, build_graph
+from mesh import Node, Curve, Element, local_stiffness, build_graph, Mesh
 from plots import plot_over_line
-
 
 class GlobalStiffness(sparse.lil_matrix):
     def update(self, element: Element):
@@ -22,10 +21,10 @@ class GlobalStiffness(sparse.lil_matrix):
             self[2 * element.nodes[i].ID + 1, 2 * element.nodes[j].ID + 1] += K_local[2 * i + 1, 2 * j + 1]
 
 
-def global_stiffness():
-    N = len(Node.get)
+def global_stiffness(mesh: Mesh):
+    N = len(mesh.nodes)
     K = GlobalStiffness((2 * N, 2 * N))
-    for element in Element.get.values():
+    for element in mesh.elements.values():
         K.update(element)
     return K
 
@@ -50,10 +49,10 @@ def invert_dict(dictionary: Dict) -> Dict:
     return inv_map
 
 
-def rhs():
-    N = len(Node.get)
+def rhs(mesh: Mesh):
+    N = len(mesh.nodes)
     R = np.zeros((2 * N, 1))
-    for element in Element.get.values():
+    for element in mesh.elements.values():
         for edge in element.edges:
             if edge.is_border():
                 n = edge.get_inner_normal()
@@ -66,18 +65,18 @@ def rhs():
 
 
 @print_execution_time('Equation system assembly')
-def assemble_equation_system():
+def assemble_equation_system(mesh: Mesh):
     # Заполнение матрицы жёсткости
     # K = parallel_global_stiffness()
-    K = global_stiffness()
+    K = global_stiffness(mesh)
     # Заполнение правой части
-    R = rhs()
+    R = rhs(mesh)
     # Применяем фиксирующие граничные условия
-    for edge in Curve.get[1].edges:
+    for edge in mesh.curves[1].edges:
         fix_in_place(K, R, edge.nodes[0], 'x')
         fix_in_place(K, R, edge.nodes[1], 'x')
 
-    for edge in Curve.get[3].edges:
+    for edge in mesh.curves[3].edges:
         fix_in_place(K, R, edge.nodes[0], 'y')
         fix_in_place(K, R, edge.nodes[1], 'y')
     return K, R
@@ -93,14 +92,14 @@ def calculate_array_values(U):
         el.get_stress()
 
 if __name__ == "__main__":
-    configure_geometry()
+    mesh = configure_geometry()
 #    graph = build_graph()
     # colors = nx.greedy_color(graph)
     # nx.draw(graph, node_size=100, labels=colors, font_color='black')
     # plt.show()
     # exit(0)
     N = len(Node.get)
-    K, R = assemble_equation_system()
+    K, R = assemble_equation_system(mesh)
     U = print_execution_time("System solution with spsolve")(spsolve)(K, R)
     calculate_array_values(U)
     plot_over_line()

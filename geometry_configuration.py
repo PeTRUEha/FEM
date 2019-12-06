@@ -84,11 +84,12 @@ def fix_in_place(K, R, node, how='x'):
         R[2 * node.ID + 1] = 0
 
 
-def create_curves():
+
     #0 - внутренняя поверхность
     #1 - поверхность слева-сверху
     #2 - внешняя поверхность
-    #3 - поверхность справа-снизу
+    # 3 - поверхность справа-снизу
+def create_curves():
     curves = {i: Curve(i) for i in range(4)}
 
     for edge in Edge.get.values():
@@ -114,3 +115,4 @@ def configure_geometry():
         mesh = MeshReader(file).read_2d_mesh()
     curves = create_curves()
     mesh.add_curves(curves)
+    return mesh
