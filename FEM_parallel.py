@@ -33,6 +33,8 @@ class GlobalStiffness(sparse.lil_matrix):
         print('done')
         return K_coo#K_coo.row, K_coo.col, K_coo.data
 
+
+@print_execution_time('Serial global stiffness construction')
 def global_stiffness(mesh: Mesh):
     N = len(mesh.nodes)
     K = GlobalStiffness((2 * N, 2 * N))
@@ -51,7 +53,7 @@ def parallel_global_stiffness(mesh) -> GlobalStiffness:
     for result in results:
         K += result
     K = K.tolil()
-    print('conversion done')
+#    print('conversion done')
     return K
 
 
@@ -86,11 +88,12 @@ def rhs(mesh: Mesh):
     return R / 2
 
 
-@print_execution_time('--------------------\nFull equation system assembly')
-def assemble_equation_system(mesh: Mesh):
+def assemble_equation_system(mesh: Mesh, parallel: bool):
     # Заполнение матрицы жёсткости
-    K = parallel_global_stiffness(mesh)
-    #K = global_stiffness(mesh)
+    if parallel:
+        K = parallel_global_stiffness(mesh)
+    else:
+        K = global_stiffness(mesh)
     # Заполнение правой части
     R = rhs(mesh)
     # Применяем фиксирующие граничные условия
@@ -136,15 +139,26 @@ def calculate_array_values(U, mesh):
         el.get_stress()
 
 
-if __name__ == "__main__":
+@print_execution_time('Total parallel')
+def main_parallel():
     mesh = configure_geometry()
-    #    graph = build_graph()
-    # colors = nx.greedy_color(graph)
-    # nx.draw(graph, node_size=100, labels=colors, font_color='black')
-    # plt.show()
-    # exit(0)
-    N = len(mesh.nodes)
-    K, R = assemble_equation_system(mesh)
-    U = print_execution_time("System solution with spsolve")(spsolve)(K, R)
+    K, R = assemble_equation_system(mesh, parallel=True)
+    U = print_execution_time("System solution with spsolve")(spsolve)(K.tocsr(), R)
     calculate_array_values(U, mesh)
+    return mesh
+
+
+@print_execution_time('Total serial')
+def main_serial():
+    mesh = configure_geometry()
+    K, R = assemble_equation_system(mesh, parallel=False)
+    U = print_execution_time("System solution with spsolve")(spsolve)(K.tocsr(), R)
+    calculate_array_values(U, mesh)
+    return mesh
+
+if __name__ == "__main__":
+    mesh = main_parallel()
+    print()
+    mesh = main_serial()
     plot_over_line(mesh)
+
