@@ -94,9 +94,9 @@ def create_curves(edges):
     for edge in edges.values():
         if edge.is_border():
             c = edge.get_centre()
-            if abs(c[0]) < 0.001:
+            if abs(c[0]) < 0.0001:
                 curves[1].add(edge)
-            elif abs(c[1]) < 0.001:
+            elif abs(c[1]) < 0.0001:
                 curves[3].add(edge)
             elif c[0] ** 2 + c[1] ** 2 < RSplit ** 2:
                 curves[0].add(edge)

@@ -7,6 +7,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from typing import Dict, List
 from multiprocessing.pool import Pool
+from itertools import repeat
 
 from geometry_configuration import configure_geometry
 from utils import *
@@ -28,7 +29,9 @@ class GlobalStiffness(sparse.lil_matrix):
         K = GlobalStiffness(shape)
         for element in elements:
             K.update(element)
-        return K
+        K_coo = K.tocoo()
+        print('done')
+        return K_coo#K_coo.row, K_coo.col, K_coo.data
 
 def global_stiffness(mesh: Mesh):
     N = len(mesh.nodes)
@@ -37,25 +40,29 @@ def global_stiffness(mesh: Mesh):
         K.update(element)
     return K
 
-
+@print_execution_time('Parallel global stiffness construction')
 def parallel_global_stiffness(mesh) -> GlobalStiffness:
     N = len(mesh.nodes)
     shape = (2 * N, 2 * N)
     with Pool(N_PROCESSES) as pool:
-        results = pool.starmap(GlobalStiffness.from_elements, [(list(mesh.elements.values()), shape)])
-
-        K = GlobalStiffness(shape)
-        for result in results:
-            K += result
+        all_args = zip(split_list(list(mesh.elements.values()), N_PROCESSES), repeat(shape))
+        results = pool.starmap(GlobalStiffness.from_elements, all_args)
+    K = GlobalStiffness(shape).tocsr()
+    for result in results:
+        K += result
+    K = K.tolil()
+    print('conversion done')
     return K
 
-def split_list(list_to_split, n_parts) -> List[List]:
+
+def split_list(list_to_split: List, n_parts) -> List[List]:
     length = len(list_to_split)
     parts = []
     for i in range(n_parts):
         part = list_to_split[int(floor(i / n_parts * length)): int(floor((i + 1) / n_parts * length))]
         parts.append(part)
     return parts
+
 
 def invert_dict(dictionary: Dict) -> Dict:
     inv_map = {}
@@ -64,7 +71,7 @@ def invert_dict(dictionary: Dict) -> Dict:
         inv_map[v].append(k)
     return inv_map
 
-
+@print_execution_time('Right hand side assembly')
 def rhs(mesh: Mesh):
     N = len(mesh.nodes)
     R = np.zeros((2 * N, 1))
@@ -79,7 +86,7 @@ def rhs(mesh: Mesh):
     return R / 2
 
 
-@print_execution_time('Equation system assembly')
+@print_execution_time('--------------------\nFull equation system assembly')
 def assemble_equation_system(mesh: Mesh):
     # Заполнение матрицы жёсткости
     K = parallel_global_stiffness(mesh)
@@ -87,6 +94,12 @@ def assemble_equation_system(mesh: Mesh):
     # Заполнение правой части
     R = rhs(mesh)
     # Применяем фиксирующие граничные условия
+    apply_fixating_conditions(K, R, mesh)
+    return K, R
+
+
+@print_execution_time("Fixating conditions application")
+def apply_fixating_conditions(K, R, mesh):
     for edge in mesh.curves[1].edges:
         fix_in_place(K, R, edge.nodes[0], 'x')
         fix_in_place(K, R, edge.nodes[1], 'x')
@@ -94,7 +107,23 @@ def assemble_equation_system(mesh: Mesh):
     for edge in mesh.curves[3].edges:
         fix_in_place(K, R, edge.nodes[0], 'y')
         fix_in_place(K, R, edge.nodes[1], 'y')
-    return K, R
+
+
+def fix_in_place(K, R, node, how='x'):
+    #for i in range(len(R)):
+    if how == 'x':
+        K[2 * node.ID, :] = 0
+        K[:, 2 * node.ID] = 0
+    if how == 'y':
+        K[2 * node.ID + 1, :] = 0
+        K[:, 2 * node.ID + 1] = 0
+    if how == 'x':
+        K[2 * node.ID, 2 * node.ID] = 1
+        R[2 * node.ID] = 0
+
+    if how == 'y':
+        K[2 * node.ID + 1, 2 * node.ID + 1] = 1
+        R[2 * node.ID + 1] = 0
 
 
 @print_execution_time('Writing arrays into elements and nodes')
@@ -106,22 +135,6 @@ def calculate_array_values(U, mesh):
         el.get_strain()
         el.get_stress()
 
-
-def fix_in_place(K, R, node, how='x'):
-    for i in range(len(R)):
-        if how == 'x':
-            K[2 * node.ID, i] = 0
-            K[i, 2 * node.ID] = 0
-        if how == 'y':
-            K[2 * node.ID + 1, i] = 0
-            K[i, 2 * node.ID + 1] = 0
-    if how == 'x':
-        K[2 * node.ID, 2 * node.ID] = 1
-        R[2 * node.ID] = 0
-
-    if how == 'y':
-        K[2 * node.ID + 1, 2 * node.ID + 1] = 1
-        R[2 * node.ID + 1] = 0
 
 if __name__ == "__main__":
     mesh = configure_geometry()
