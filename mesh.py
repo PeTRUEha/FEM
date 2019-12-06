@@ -49,7 +49,7 @@ class Node:
         self.values = {}  # заполняется при инициализации элементов
 
     def __str__(self):
-        return 'node {}:\n({}, {}, {})\n'.format(self.ID, self.x, self.y, self.z)
+        return 'node {}:\n({}, {})\n'.format(self.ID, self.x, self.y)
 
 
 class Edge:
@@ -62,15 +62,6 @@ class Edge:
         self.elements = [element]
         self.length = self.get_len()
         self.curve = None
-
-    @staticmethod
-    def add_edge_info(node1, node2, element):
-        min_node, max_node = (node1, node2) if node1.ID < node2.ID else (node2, node1)
-        ID = (min_node.ID, max_node.ID)
-        if ID in Edge.get:
-            Edge.get[ID].elements.append(element)
-        else:
-            Edge(min_node, max_node, element)
 
     def get_centre(self):
         a = self.nodes[0]

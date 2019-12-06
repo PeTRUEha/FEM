@@ -1,15 +1,18 @@
+from math import floor
+
 import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
 import networkx as nx
 import matplotlib.pyplot as plt
-from typing import Dict
+from typing import Dict, List
 from multiprocessing.pool import Pool
 
 from geometry_configuration import configure_geometry
 from utils import *
 from mesh import Node, Curve, Element, local_stiffness, Mesh
 from plots import plot_over_line
+from constants import N_PROCESSES
 
 class GlobalStiffness(sparse.lil_matrix):
     def update(self, element: Element):
@@ -20,6 +23,12 @@ class GlobalStiffness(sparse.lil_matrix):
             self[2 * element.nodes[i].ID, 2 * element.nodes[j].ID + 1] += K_local[2 * i, 2 * j + 1]
             self[2 * element.nodes[i].ID + 1, 2 * element.nodes[j].ID + 1] += K_local[2 * i + 1, 2 * j + 1]
 
+    @staticmethod
+    def from_elements(elements: List[Element], shape):
+        K = GlobalStiffness(shape)
+        for element in elements:
+            K.update(element)
+        return K
 
 def global_stiffness(mesh: Mesh):
     N = len(mesh.nodes)
@@ -29,17 +38,24 @@ def global_stiffness(mesh: Mesh):
     return K
 
 
-def parallel_global_stiffness(colors: Dict[int, int]) -> GlobalStiffness:
+def parallel_global_stiffness(mesh) -> GlobalStiffness:
     N = len(mesh.nodes)
-    K = GlobalStiffness((2 * N, 2 * N))
-    for one_color_elements in invert_dict(colors).values():
-        with Pool(1) as pool:
-            pool.map(GlobalStiffness.update, [(K, Element.get[element_n]) for element_n in one_color_elements])
-            pool.apply_async(GlobalStiffness.update, [(K, node) for node in one_color_elements])
-        # for element_number in one_color_elements:
-        #     K.update(Element.get[element_number])
+    shape = (2 * N, 2 * N)
+    with Pool(N_PROCESSES) as pool:
+        results = pool.starmap(GlobalStiffness.from_elements, [(list(mesh.elements.values()), shape)])
+
+        K = GlobalStiffness(shape)
+        for result in results:
+            K += result
     return K
 
+def split_list(list_to_split, n_parts) -> List[List]:
+    length = len(list_to_split)
+    parts = []
+    for i in range(n_parts):
+        part = list_to_split[int(floor(i / n_parts * length)): int(floor((i + 1) / n_parts * length))]
+        parts.append(part)
+    return parts
 
 def invert_dict(dictionary: Dict) -> Dict:
     inv_map = {}
@@ -66,8 +82,8 @@ def rhs(mesh: Mesh):
 @print_execution_time('Equation system assembly')
 def assemble_equation_system(mesh: Mesh):
     # Заполнение матрицы жёсткости
-    # K = parallel_global_stiffness()
-    K = global_stiffness(mesh)
+    K = parallel_global_stiffness(mesh)
+    #K = global_stiffness(mesh)
     # Заполнение правой части
     R = rhs(mesh)
     # Применяем фиксирующие граничные условия
