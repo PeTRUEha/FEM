@@ -3,15 +3,14 @@ import re
 from constants import RSplit, FILENAME, P1, P2
 from mesh import Node, Element, Curve, Edge, Mesh
 from utils import print_execution_time
-import networkx as nx
 
 
 class MeshReader:
     def __init__(self, file):
         self.file = file
-        self.renumbering = {}
         self.nodes = {}
         self.elements = []
+        self.edges = {}
 
     def skip_lines(self, n_lines):
         for i in range(n_lines):
@@ -26,7 +25,9 @@ class MeshReader:
         self.skip_to('E L E M E N T S')
         self.skip_lines(1)  # пропускаем строку
         self.read_elements()
-        return Mesh(self.nodes.values(), self.elements)
+        self.create_edges()
+        self.leave_only_border_edges()
+        return Mesh(self.nodes.values(), self.elements, self.edges)
 
     def skip_to(self, string):
         line = next(self.file)
@@ -66,32 +67,31 @@ class MeshReader:
                 # print(new_element)
             line = next(self.file)
 
-def fix_in_place(K, R, node, how='x'):
-    for i in range(len(R)):
-        if how == 'x':
-            K[2 * node.ID, i] = 0
-            K[i, 2 * node.ID] = 0
-        if how == 'y':
-            K[2 * node.ID + 1, i] = 0
-            K[i, 2 * node.ID + 1] = 0
-    if how == 'x':
-        K[2 * node.ID, 2 * node.ID] = 1
-        R[2 * node.ID] = 0
+    def create_edges(self):
+        for element in self.elements:
+            for i in range(-1, len(element.nodes) - 1, 1):
+                self.add_edge_info(element.nodes[i], element.nodes[i + 1], element)
 
-    if how == 'y':
-        K[2 * node.ID + 1, 2 * node.ID + 1] = 1
-        R[2 * node.ID + 1] = 0
+    def add_edge_info(self, node1, node2, element):
+        min_node, max_node = (node1, node2) if node1.ID < node2.ID else (node2, node1)
+        ID = (min_node.ID, max_node.ID)
+        if ID in self.edges:
+            self.edges[ID].elements.append(element)
+        else:
+            self.edges[ID] = Edge(min_node, max_node, element)
 
+    def leave_only_border_edges(self):
+        self.edges = {ID: edge for ID, edge in self.edges.items() if edge.is_border()}
 
 
     #0 - внутренняя поверхность
     #1 - поверхность слева-сверху
     #2 - внешняя поверхность
-    # 3 - поверхность справа-снизу
-def create_curves():
+    #3 - поверхность справа-снизу
+def create_curves(edges):
     curves = {i: Curve(i) for i in range(4)}
 
-    for edge in Edge.get.values():
+    for edge in edges.values():
         if edge.is_border():
             c = edge.get_centre()
             if abs(c[0]) < 0.001:
@@ -112,6 +112,6 @@ def create_curves():
 def configure_geometry():
     with open(FILENAME, 'r') as file:
         mesh = MeshReader(file).read_2d_mesh()
-    curves = create_curves()
+    curves = create_curves(mesh.edges)
     mesh.add_curves(curves)
     return mesh

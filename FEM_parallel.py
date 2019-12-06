@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from typing import Dict
 from multiprocessing.pool import Pool
 
-from geometry_configuration import fix_in_place, configure_geometry
+from geometry_configuration import configure_geometry
 from utils import *
 from mesh import Node, Curve, Element, local_stiffness, Mesh
 from plots import plot_over_line
@@ -52,14 +52,13 @@ def invert_dict(dictionary: Dict) -> Dict:
 def rhs(mesh: Mesh):
     N = len(mesh.nodes)
     R = np.zeros((2 * N, 1))
-    for element in mesh.elements.values():
-        for edge in element.edges:
-            if edge.is_border():
-                n = edge.get_inner_normal()
-                boundary_condition = edge.get_boundary_condition()
-                for node in edge.nodes:
-                    R[2 * node.ID] += boundary_condition * n[0] * edge.length
-                    R[2 * node.ID + 1] += boundary_condition * n[1] * edge.length
+    for edge in mesh.edges.values():
+        if edge.is_border():
+            n = edge.get_inner_normal()
+            boundary_condition = edge.get_boundary_condition()
+            for node in edge.nodes:
+                R[2 * node.ID] += boundary_condition * n[0] * edge.length
+                R[2 * node.ID + 1] += boundary_condition * n[1] * edge.length
 
     return R / 2
 
@@ -91,9 +90,26 @@ def calculate_array_values(U, mesh):
         el.get_strain()
         el.get_stress()
 
+
+def fix_in_place(K, R, node, how='x'):
+    for i in range(len(R)):
+        if how == 'x':
+            K[2 * node.ID, i] = 0
+            K[i, 2 * node.ID] = 0
+        if how == 'y':
+            K[2 * node.ID + 1, i] = 0
+            K[i, 2 * node.ID + 1] = 0
+    if how == 'x':
+        K[2 * node.ID, 2 * node.ID] = 1
+        R[2 * node.ID] = 0
+
+    if how == 'y':
+        K[2 * node.ID + 1, 2 * node.ID + 1] = 1
+        R[2 * node.ID + 1] = 0
+
 if __name__ == "__main__":
     mesh = configure_geometry()
-#    graph = build_graph()
+    #    graph = build_graph()
     # colors = nx.greedy_color(graph)
     # nx.draw(graph, node_size=100, labels=colors, font_color='black')
     # plt.show()

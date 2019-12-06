@@ -7,6 +7,7 @@ from numpy import matrix
 import networkx as nx
 import itertools
 import matplotlib.pyplot as plt
+from scipy.sparse import coo_matrix
 
 from typing import List, Dict, Iterable
 
@@ -15,10 +16,10 @@ from constants import LAMBDA, MU, Ntr
 
 
 class Mesh:
-    def __init__(self, nodes: Iterable[Node], elements: List[Element]):
+    def __init__(self, nodes: Iterable[Node], elements: List[Element], edges):
         self.nodes = dict()
         self.add_nodes(nodes)
-        self.edges = dict()
+        self.edges = edges
         self.elements = dict()
         self.add_elements(elements)
         self.curves = dict()
@@ -31,19 +32,6 @@ class Mesh:
         # TODO change edge setup
         for element in elements:
             self.elements.update({element.ID: element})
-            # for i in range(-1, len(element.nodes) - 1, 1):
-            #     Edge.add_edge_info(element.nodes[i], element.nodes[i + 1], element)
-
-    def configure_edge(self, node1, node2, element):
-        ID = (min(node1.ID, node2.ID), max(node1.ID, node2.ID))
-        if ID in self.edges.keys():
-            self.edges[ID].elements.append(element) #TODO add_element()
-            element.edges.append(Edge.get[ID]) #TODO add_edge()
-        else:
-            self.add_edge(Edge(self.nodes[ID[0]], self.nodes[ID[1]], element))
-
-    def add_edge(self, edge):
-        self.edges.update({edge.ID: edge})
 
     def add_curves(self, curves):
         for curve in curves.values():
@@ -65,8 +53,6 @@ class Node:
 
 
 class Edge:
-    get = dict()
-
     def __init__(self, node1, node2, element):
         """ID узлов на вход подаются упорядоченными по возрастанию,
         вместо конструктора рекомендуется использовать add_edge_info"""
@@ -77,16 +63,12 @@ class Edge:
         self.length = self.get_len()
         self.curve = None
 
-        Edge.get.update({self.ID: self})
-        element.edges.append(self)
-
     @staticmethod
     def add_edge_info(node1, node2, element):
         min_node, max_node = (node1, node2) if node1.ID < node2.ID else (node2, node1)
         ID = (min_node.ID, max_node.ID)
         if ID in Edge.get:
             Edge.get[ID].elements.append(element)
-            element.edges.append(Edge.get[ID])
         else:
             Edge(min_node, max_node, element)
 
@@ -97,6 +79,7 @@ class Edge:
         return centre
 
     def get_inner_normal(self):
+        #TODO: should be a function of edge and node and should be called from element
         '''находит для граничных элементов нормаль к границе, смотрящую внутрь'''
         a = self.nodes[0]
         b = self.nodes[1]
@@ -152,21 +135,11 @@ class Element:
     к моменту инициализации словарь с узлами уже есть и
     назначен в статическую переменную get"""
 
-    get = dict()
-
     def __init__(self, ID, nodes):
         self.ID = ID
         self.nodes = nodes
-        self.edges = list()
         self.values = {}
-
         self.area = self.calculate_area()
-
-        for i in range(-1, len(self.nodes) - 1, 1):
-            Edge.add_edge_info(self.nodes[i], self.nodes[i + 1], self)
-
-        # for node in self.nodes:
-        #     node.elements.append(self)
 
     def calculate_area(self):
         nodes = self.nodes
