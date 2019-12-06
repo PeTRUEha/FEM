@@ -158,7 +158,6 @@ class Element:
         self.ID = ID
         self.nodes = nodes
         self.edges = list()
-        Element.get.update({self.ID: self})
         self.values = {}
 
         self.area = self.calculate_area()

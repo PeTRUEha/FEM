@@ -87,7 +87,7 @@ def calculate_array_values(U, mesh):
     for i in range(len(mesh.nodes)):
         mesh.nodes[i].values['displacement'] = np.array([U[2 * i], U[2 * i + 1]])
 
-    for el in Element.get.values():
+    for el in mesh.elements.values():
         el.get_strain()
         el.get_stress()
 
