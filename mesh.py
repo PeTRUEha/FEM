@@ -46,8 +46,8 @@ class Mesh:
         self.edges.update({edge.ID: edge})
 
     def add_curves(self, curves):
-        for curve in curves:
-            self.curves.update({curve.name, curve})
+        for curve in curves.values():
+            self.curves.update({curve.name: curve})
 
 
 class Node:

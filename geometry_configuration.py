@@ -85,29 +85,32 @@ def fix_in_place(K, R, node, how='x'):
 
 
 def create_curves():
-    #1 - внутренняя поверхность
-    #2 - поверхность слева-сверху
-    #3 - внешняя поверхность
-    #4 - поверхность справа-снизу
-    curves = {i: Curve(i) for i in range(1, 5)}
+    #0 - внутренняя поверхность
+    #1 - поверхность слева-сверху
+    #2 - внешняя поверхность
+    #3 - поверхность справа-снизу
+    curves = {i: Curve(i) for i in range(4)}
 
     for edge in Edge.get.values():
         if edge.is_border():
             c = edge.get_centre()
             if abs(c[0]) < 0.001:
-                curves[2].add(edge)
-            elif abs(c[1]) < 0.001:
-                curves[4].add(edge)
-            elif c[0] ** 2 + c[1] ** 2 < RSplit ** 2:
                 curves[1].add(edge)
-            else:
+            elif abs(c[1]) < 0.001:
                 curves[3].add(edge)
+            elif c[0] ** 2 + c[1] ** 2 < RSplit ** 2:
+                curves[0].add(edge)
+            else:
+                curves[2].add(edge)
+
+    curves[0].boundary_condition = P1
+    curves[2].boundary_condition = P2
+    return curves
 
 
 @print_execution_time('Geometry configuration')
 def configure_geometry():
     with open(FILENAME, 'r') as file:
         mesh = MeshReader(file).read_2d_mesh()
-    create_curves()
-    Curve.get[1].boundary_condition = P1
-    Curve.get[3].boundary_condition = P2
+    curves = create_curves()
+    mesh.add_curves(curves)

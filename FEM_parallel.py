@@ -73,11 +73,11 @@ def assemble_equation_system():
     # Заполнение правой части
     R = rhs()
     # Применяем фиксирующие граничные условия
-    for edge in Curve.get[2].edges:
+    for edge in Curve.get[1].edges:
         fix_in_place(K, R, edge.nodes[0], 'x')
         fix_in_place(K, R, edge.nodes[1], 'x')
 
-    for edge in Curve.get[4].edges:
+    for edge in Curve.get[3].edges:
         fix_in_place(K, R, edge.nodes[0], 'y')
         fix_in_place(K, R, edge.nodes[1], 'y')
     return K, R
