@@ -1,7 +1,7 @@
 import re
 
 from constants import RSplit, FILENAME, P1, P2
-from mesh import Node, Element, Curve, Edge
+from mesh import Node, Element, Curve, Edge, Mesh
 from utils import print_execution_time
 import networkx as nx
 
@@ -10,6 +10,8 @@ class MeshReader:
     def __init__(self, file):
         self.file = file
         self.renumbering = {}
+        self.nodes = []
+        self.elements = []
 
     def skip_lines(self, n_lines):
         for i in range(n_lines):
@@ -24,6 +26,7 @@ class MeshReader:
         self.skip_to('E L E M E N T S')
         self.skip_lines(1)  # пропускаем строку
         self.read_elements()
+        return Mesh(self.nodes, self.elements)
 
     def skip_to(self, string):
         line = next(self.file)
@@ -45,7 +48,7 @@ class MeshReader:
 
                 x, y = map(float, [match.group(2),
                                    match.group(3)])
-                Node(n_new, x, y)
+                self.nodes.append(Node(n_new, x, y))
                 line = next(self.file)
             else:
                 break
@@ -60,7 +63,7 @@ class MeshReader:
                 n = int(items[0])
                 its_nodes = map(int, items[1:])
                 new_nodes = [self.renumbering[node] for node in its_nodes]
-                Element(n, new_nodes)
+                self.elements.append(Element(n, new_nodes))
                 # print(new_element)
             line = next(self.file)
 
@@ -82,28 +85,29 @@ def fix_in_place(K, R, node, how='x'):
 
 
 def create_curves():
-    Curve(1)  # внутренняя поверхность
-    Curve(2)  # поверхность слева-сверху
-    Curve(3)  # внешняя поверхность
-    Curve(4)  # поверхность справа-снизу
+    #1 - внутренняя поверхность
+    #2 - поверхность слева-сверху
+    #3 - внешняя поверхность
+    #4 - поверхность справа-снизу
+    curves = {i: Curve(i) for i in range(1, 5)}
 
     for edge in Edge.get.values():
         if edge.is_border():
             c = edge.get_centre()
             if abs(c[0]) < 0.001:
-                Curve.get[2].add(edge)
+                curves[2].add(edge)
             elif abs(c[1]) < 0.001:
-                Curve.get[4].add(edge)
+                curves[4].add(edge)
             elif c[0] ** 2 + c[1] ** 2 < RSplit ** 2:
-                Curve.get[1].add(edge)
+                curves[1].add(edge)
             else:
-                Curve.get[3].add(edge)
+                curves[3].add(edge)
 
 
 @print_execution_time('Geometry configuration')
 def configure_geometry():
     with open(FILENAME, 'r') as file:
-        MeshReader(file).read_2d_mesh()
+        mesh = MeshReader(file).read_2d_mesh()
     create_curves()
     Curve.get[1].boundary_condition = P1
     Curve.get[3].boundary_condition = P2
