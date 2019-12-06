@@ -10,7 +10,7 @@ class MeshReader:
     def __init__(self, file):
         self.file = file
         self.renumbering = {}
-        self.nodes = []
+        self.nodes = {}
         self.elements = []
 
     def skip_lines(self, n_lines):
@@ -26,7 +26,7 @@ class MeshReader:
         self.skip_to('E L E M E N T S')
         self.skip_lines(1)  # пропускаем строку
         self.read_elements()
-        return Mesh(self.nodes, self.elements)
+        return Mesh(self.nodes.values(), self.elements)
 
     def skip_to(self, string):
         line = next(self.file)
@@ -44,11 +44,10 @@ class MeshReader:
                 n_old = int(match.group(1))
                 n_new = nodes_count
                 nodes_count += 1
-                self.renumbering.update({n_old: n_new})
 
                 x, y = map(float, [match.group(2),
                                    match.group(3)])
-                self.nodes.append(Node(n_new, x, y))
+                self.nodes[n_old] = (Node(n_new, x, y))
                 line = next(self.file)
             else:
                 break
@@ -61,14 +60,14 @@ class MeshReader:
                 break
             else:
                 n = int(items[0])
-                its_nodes = map(int, items[1:])
-                new_nodes = [self.renumbering[node] for node in its_nodes]
-                self.elements.append(Element(n, new_nodes))
+                nodes_old_ids = map(int, items[1:])
+                element_nodes = [self.nodes[id] for id in nodes_old_ids]
+                self.elements.append(Element(n, element_nodes))
                 # print(new_element)
             line = next(self.file)
 
 def fix_in_place(K, R, node, how='x'):
-    for i in range(2 * len(Node.get)):
+    for i in range(len(R)):
         if how == 'x':
             K[2 * node.ID, i] = 0
             K[i, 2 * node.ID] = 0

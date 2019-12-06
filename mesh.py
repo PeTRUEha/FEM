@@ -8,14 +8,14 @@ import networkx as nx
 import itertools
 import matplotlib.pyplot as plt
 
-from typing import List, Dict
+from typing import List, Dict, Iterable
 
 from utils import triangle_area_2d, is_to_the_left, WrongElementTypeError, print_execution_time
 from constants import LAMBDA, MU, Ntr
 
 
 class Mesh:
-    def __init__(self, nodes: List[Node], elements: List[Element]):
+    def __init__(self, nodes: Iterable[Node], elements: List[Element]):
         self.nodes = dict()
         self.add_nodes(nodes)
         self.edges = dict()
@@ -59,7 +59,6 @@ class Node:
         self.y = y
         # self.elements = []
         self.values = {}  # заполняется при инициализации элементов
-        Node.get.update({self.ID: self})
 
     def __str__(self):
         return 'node {}:\n({}, {}, {})\n'.format(self.ID, self.x, self.y, self.z)
@@ -83,14 +82,13 @@ class Edge:
 
     @staticmethod
     def add_edge_info(node1, node2, element):
-        ID = (min(node1.ID, node2.ID), max(node1.ID, node2.ID))
+        min_node, max_node = (node1, node2) if node1.ID < node2.ID else (node2, node1)
+        ID = (min_node.ID, max_node.ID)
         if ID in Edge.get:
             Edge.get[ID].elements.append(element)
             element.edges.append(Edge.get[ID])
         else:
-            Edge(Node.get[ID[0]],
-                 Node.get[ID[1]],
-                 element)
+            Edge(min_node, max_node, element)
 
     def get_centre(self):
         a = self.nodes[0]
@@ -156,9 +154,9 @@ class Element:
 
     get = dict()
 
-    def __init__(self, ID, node_ids):
+    def __init__(self, ID, nodes):
         self.ID = ID
-        self.nodes = [Node.get[node_id] for node_id in list(node_ids)]
+        self.nodes = nodes
         self.edges = list()
         Element.get.update({self.ID: self})
         self.values = {}
@@ -259,15 +257,15 @@ class Element:
         self.values['stress'] = sigma.T.reshape(-1, ).tolist()[0]
 
 
-def probe_location_from_nodes(kind, x, y):
-    for e in Element.get.values():
+def probe_location_from_nodes(mesh, kind, x, y):
+    for e in mesh.elements.values():
         if e.covers(x, y):
             return e.probe_location_from_nodes(kind, x, y)
     return np.nan
 
 
-def probe_location_from_element(kind, x, y):
-    for e in Element.get.values():
+def probe_location_from_element(mesh, kind, x, y):
+    for e in mesh.elements.values():
         if e.covers(x, y):
             return e.probe_location_from_element(kind, x, y)
     return np.nan
@@ -290,10 +288,10 @@ def local_stiffness(element):
     return K_local
 
 
-@print_execution_time("Graph construction")
-def build_graph():
-    graph = nx.Graph()
-    for node in Node.get.values():
-        for element1, element2 in set(itertools.combinations(set(node.elements), 2)):
-            graph.add_edge(element1.ID, element2.ID)
-    return graph
+# @print_execution_time("Graph construction")
+# def build_graph():
+#     graph = nx.Graph()
+#     for node in Node.get.values():
+#         for element1, element2 in set(itertools.combinations(set(node.elements), 2)):
+#             graph.add_edge(element1.ID, element2.ID)
+#     return graph

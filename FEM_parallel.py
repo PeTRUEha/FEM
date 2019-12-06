@@ -8,7 +8,7 @@ from multiprocessing.pool import Pool
 
 from geometry_configuration import fix_in_place, configure_geometry
 from utils import *
-from mesh import Node, Curve, Element, local_stiffness, build_graph, Mesh
+from mesh import Node, Curve, Element, local_stiffness, Mesh
 from plots import plot_over_line
 
 class GlobalStiffness(sparse.lil_matrix):
@@ -30,7 +30,7 @@ def global_stiffness(mesh: Mesh):
 
 
 def parallel_global_stiffness(colors: Dict[int, int]) -> GlobalStiffness:
-    N = len(Node.get)
+    N = len(mesh.nodes)
     K = GlobalStiffness((2 * N, 2 * N))
     for one_color_elements in invert_dict(colors).values():
         with Pool(1) as pool:
@@ -83,9 +83,9 @@ def assemble_equation_system(mesh: Mesh):
 
 
 @print_execution_time('Writing arrays into elements and nodes')
-def calculate_array_values(U):
-    for i in range(len(Node.get)):
-        Node.get[i].values['displacement'] = np.array([U[2 * i], U[2 * i + 1]])
+def calculate_array_values(U, mesh):
+    for i in range(len(mesh.nodes)):
+        mesh.nodes[i].values['displacement'] = np.array([U[2 * i], U[2 * i + 1]])
 
     for el in Element.get.values():
         el.get_strain()
@@ -98,8 +98,8 @@ if __name__ == "__main__":
     # nx.draw(graph, node_size=100, labels=colors, font_color='black')
     # plt.show()
     # exit(0)
-    N = len(Node.get)
+    N = len(mesh.nodes)
     K, R = assemble_equation_system(mesh)
     U = print_execution_time("System solution with spsolve")(spsolve)(K, R)
-    calculate_array_values(U)
-    plot_over_line()
+    calculate_array_values(U, mesh)
+    plot_over_line(mesh)
