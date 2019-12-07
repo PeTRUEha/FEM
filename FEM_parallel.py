@@ -93,38 +93,32 @@ class EquationSystem():
         K = self.matrix
         R = self.rhs
 
+        indices_to_fix = get_indices_to_fix(mesh)
+        for index in indices_to_fix:
+            K[index, :] = 0
 
-        indices_to_fix =[]
-        for edge in mesh.curves[1].edges:
-            for node in edge.nodes:
-                indices_to_fix.append(2 * node.ID)
-
-        for edge in mesh.curves[3].edges:
-            for node in edge.nodes:
-                indices_to_fix.append(2 * node.ID + 1)
+        K = K.T
 
         for index in indices_to_fix:
             K[index, :] = 0
-        for index in indices_to_fix:
-            K[:, index] = 0
             K[index, index] = 1
             R[index] = 0
 
+        self.matrix = K.tocsc().T
+        self.rhs = R
 
-def fix_in_place(K, R, node, how='x'):
-    #for i in range(len(R)):
-    if how == 'x':
-        K[2 * node.ID, :] = 0
-        K[:, 2 * node.ID] = 0
-        K[2 * node.ID, 2 * node.ID] = 1
-        R[2 * node.ID] = 0
 
-    if how == 'y':
-        K[2 * node.ID + 1, :] = 0
-        K[:, 2 * node.ID + 1] = 0
-        K[2 * node.ID + 1, 2 * node.ID + 1] = 1
-        R[2 * node.ID + 1] = 0
 
+def get_indices_to_fix(mesh):
+    indices_to_fix = []
+    for edge in mesh.curves[1].edges:
+        for node in edge.nodes:
+            indices_to_fix.append(2 * node.ID)
+
+    for edge in mesh.curves[3].edges:
+        for node in edge.nodes:
+            indices_to_fix.append(2 * node.ID + 1)
+    return indices_to_fix
 
 def assemble_equation_system(mesh: Mesh, parallel: bool):
     # Заполнение матрицы жёсткости
@@ -135,7 +129,7 @@ def assemble_equation_system(mesh: Mesh, parallel: bool):
     R = rhs(mesh)
     eq_system = EquationSystem(K, R)
     eq_system.apply_fixating_conditions(mesh)
-    return K, R
+    return eq_system.matrix, eq_system.rhs
 
 
 @print_execution_time('Writing arrays into elements and nodes')
@@ -152,7 +146,7 @@ def calculate_array_values(U, mesh):
 def main_parallel():
     mesh = configure_geometry()
     K, R = assemble_equation_system(mesh, parallel=True)
-    U = print_execution_time("System solution with spsolve")(spsolve)(K.tocsr(), R)
+    U = print_execution_time("System solution with spsolve")(spsolve)(K, R)
     calculate_array_values(U, mesh)
     return mesh
 
@@ -161,13 +155,13 @@ def main_parallel():
 def main_serial():
     mesh = configure_geometry()
     K, R = assemble_equation_system(mesh, parallel=False)
-    U = print_execution_time("System solution with spsolve")(spsolve)(K.tocsr(), R)
+    U = print_execution_time("System solution with spsolve")(spsolve)(K, R)
     calculate_array_values(U, mesh)
     return mesh
 
 if __name__ == "__main__":
     mesh = main_parallel()
     print()
-    #mesh = main_serial()
+    mesh = main_serial()
     plot_over_line(mesh)
 
