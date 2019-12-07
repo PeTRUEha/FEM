@@ -66,13 +66,6 @@ def split_list(list_to_split: List, n_parts) -> List[List]:
     return parts
 
 
-def invert_dict(dictionary: Dict) -> Dict:
-    inv_map = {}
-    for k, v in dictionary.items():
-        inv_map[v] = inv_map.get(v, [])
-        inv_map[v].append(k)
-    return inv_map
-
 @print_execution_time('Right hand side assembly')
 def rhs(mesh: Mesh):
     N = len(mesh.nodes)
@@ -88,28 +81,30 @@ def rhs(mesh: Mesh):
     return R / 2
 
 
-def assemble_equation_system(mesh: Mesh, parallel: bool):
-    # Заполнение матрицы жёсткости
-    if parallel:
-        K = parallel_global_stiffness(mesh)
-    else:
-        K = global_stiffness(mesh)
-    # Заполнение правой части
-    R = rhs(mesh)
-    # Применяем фиксирующие граничные условия
-    apply_fixating_conditions(K, R, mesh)
-    return K, R
+class EquationSystem():
+    def __init__(self, matrix, rhs):
+        self.matrix = matrix
+        self.rhs = rhs
 
 
-@print_execution_time("Fixating conditions application")
-def apply_fixating_conditions(K, R, mesh):
-    for edge in mesh.curves[1].edges:
-        fix_in_place(K, R, edge.nodes[0], 'x')
-        fix_in_place(K, R, edge.nodes[1], 'x')
+    @print_execution_time("Fixating conditions application")
+    def apply_fixating_conditions(self, mesh):
+        """Fixing in place all nodes in curves 1 and 3"""
+        K = self.matrix
+        R = self.rhs
+        for edge in mesh.curves[1].edges:
+            for node in edge.nodes:
+                K[2 * node.ID, :] = 0
+                K[:, 2 * node.ID] = 0
+                K[2 * node.ID, 2 * node.ID] = 1
+                R[2 * node.ID] = 0
 
-    for edge in mesh.curves[3].edges:
-        fix_in_place(K, R, edge.nodes[0], 'y')
-        fix_in_place(K, R, edge.nodes[1], 'y')
+        for edge in mesh.curves[3].edges:
+            for node in edge.nodes:
+                K[2 * node.ID + 1, :] = 0
+                K[:, 2 * node.ID + 1] = 0
+                K[2 * node.ID + 1, 2 * node.ID + 1] = 1
+                R[2 * node.ID + 1] = 0
 
 
 def fix_in_place(K, R, node, how='x'):
@@ -117,16 +112,26 @@ def fix_in_place(K, R, node, how='x'):
     if how == 'x':
         K[2 * node.ID, :] = 0
         K[:, 2 * node.ID] = 0
-    if how == 'y':
-        K[2 * node.ID + 1, :] = 0
-        K[:, 2 * node.ID + 1] = 0
-    if how == 'x':
         K[2 * node.ID, 2 * node.ID] = 1
         R[2 * node.ID] = 0
 
     if how == 'y':
+        K[2 * node.ID + 1, :] = 0
+        K[:, 2 * node.ID + 1] = 0
         K[2 * node.ID + 1, 2 * node.ID + 1] = 1
         R[2 * node.ID + 1] = 0
+
+
+def assemble_equation_system(mesh: Mesh, parallel: bool):
+    # Заполнение матрицы жёсткости
+    if parallel:
+        K = parallel_global_stiffness(mesh)
+    else:
+        K = global_stiffness(mesh)
+    R = rhs(mesh)
+    eq_system = EquationSystem(K, R)
+    eq_system.apply_fixating_conditions(mesh)
+    return K, R
 
 
 @print_execution_time('Writing arrays into elements and nodes')
