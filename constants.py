@@ -20,5 +20,5 @@ F = 0  # массовая сила
 N_PROCESSES = 4
 LAMBDA = 100
 MU = 80
-FILENAME = 'meshes\\donut5.inp'
+FILENAME = 'meshes\\donut7.inp'
 

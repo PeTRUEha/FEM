@@ -1,4 +1,7 @@
 import datetime
+from math import floor
+from typing import List
+
 from numpy import matrix, linalg
 
 
@@ -35,3 +38,12 @@ def is_to_the_left(p, p1, p2):
     x2, y2 = p2
     D = (x - x1) * (y2 - y1) - (y - y1) * (x2 - x1)
     return -D
+
+
+def split_list(list_to_split: List, n_parts) -> List[List]:
+    length = len(list_to_split)
+    parts = []
+    for i in range(n_parts):
+        part = list_to_split[int(floor(i / n_parts * length)): int(floor((i + 1) / n_parts * length))]
+        parts.append(part)
+    return parts

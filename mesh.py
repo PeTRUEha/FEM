@@ -11,7 +11,7 @@ from scipy.sparse import coo_matrix
 from multiprocessing import Pool
 from typing import List, Dict, Iterable
 
-from utils import triangle_area_2d, is_to_the_left, WrongElementTypeError, print_execution_time
+from utils import triangle_area_2d, is_to_the_left, WrongElementTypeError, print_execution_time, split_list
 from constants import LAMBDA, MU, Ntr, N_PROCESSES
 
 
@@ -37,7 +37,7 @@ class Mesh:
         for curve in curves.values():
             self.curves.update({curve.name: curve})
 
-    @print_execution_time('Writing arrays into elements and nodes')
+    @print_execution_time('Calculation of strains and stresses')
     def calculate_array_values(self, U):
         for i in range(len(self.nodes)):
             self.nodes[i].values['displacement'] = np.array([U[2 * i], U[2 * i + 1]])
@@ -47,15 +47,33 @@ class Mesh:
             el.values['stress'] = el.get_stress()
 
 
-    @print_execution_time('Parallel writing arrays into elements and nodes')
+    @print_execution_time('Parallel calculation of strains and stresses')
     def parallel_calculate_array_values(self, U):
         for i in range(len(self.nodes)):
             self.nodes[i].values['displacement'] = np.array([U[2 * i], U[2 * i + 1]])
 
         with Pool(N_PROCESSES) as pool:
-            for el in self.elements.values():
-                el.values['strain'] = el.get_strain()
-                el.values['stress'] = el.get_stress()
+            element_groups = split_list(list(self.elements.values()), N_PROCESSES)
+            strain_and_stress_arrays = pool.map(get_arrays, element_groups)
+
+            for i, (strain_array, stress_array) in enumerate(strain_and_stress_arrays):
+                group = element_groups[i]
+                for j, element in enumerate(group):
+                    element.values['strain'] = strain_array[j]
+                    element.values['stress'] = stress_array[j]
+
+
+def get_arrays(elements: List[Element]):
+    stress_array = np.zeros((len(elements), 3))
+    strain_array = np.zeros((len(elements), 3))
+    for i, element in enumerate(elements):
+        strain = np.array(element.get_strain())
+        element.values['strain'] = strain
+        strain_array[i] = strain
+    for i in range(len(elements)):
+        stress_array[i] = np.array(elements[i].get_stress())
+
+    return strain_array, stress_array
 
 
 class Node:

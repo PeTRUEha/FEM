@@ -1,19 +1,16 @@
-from math import floor
-
 import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
-import networkx as nx
-import matplotlib.pyplot as plt
-from typing import Dict, List
 from multiprocessing.pool import Pool
 from itertools import repeat
 
 from geometry_configuration import configure_geometry
 from utils import *
-from mesh import Node, Curve, Element, local_stiffness, Mesh
+from mesh import Element, local_stiffness, Mesh
 from plots import plot_over_line
 from constants import N_PROCESSES
+from utils import split_list
+
 
 class GlobalStiffness(sparse.lil_matrix):
     def update(self, element: Element):
@@ -30,8 +27,7 @@ class GlobalStiffness(sparse.lil_matrix):
         for element in elements:
             K.update(element)
         K_coo = K.tocoo()
-        print('done')
-        return K_coo#K_coo.row, K_coo.col, K_coo.data
+        return K_coo
 
 
 @print_execution_time('Serial global stiffness construction')
@@ -55,15 +51,6 @@ def parallel_global_stiffness(mesh) -> GlobalStiffness:
     K = K.tolil()
 #    print('conversion done')
     return K
-
-
-def split_list(list_to_split: List, n_parts) -> List[List]:
-    length = len(list_to_split)
-    parts = []
-    for i in range(n_parts):
-        part = list_to_split[int(floor(i / n_parts * length)): int(floor((i + 1) / n_parts * length))]
-        parts.append(part)
-    return parts
 
 
 @print_execution_time('Right hand side assembly')
@@ -139,7 +126,7 @@ def main_parallel():
     mesh = configure_geometry()
     K, R = assemble_equation_system(mesh, parallel=True)
     U = print_execution_time("System solution with spsolve")(spsolve)(K, R)
-    mesh.calculate_array_values(U)
+    mesh.parallel_calculate_array_values(U)
     return mesh
 
 

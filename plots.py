@@ -7,16 +7,16 @@ from numpy import linspace
 from mesh import probe_location_from_nodes, probe_location_from_element
 
 
-def plot_over_line(mesh, line=linspace(0, 2, 50)):
-    values = [probe_location_from_nodes(mesh, 'displacement', x, 0) for x in line]
-    eps = [probe_location_from_element(mesh, 'strain', x, 0) for x in line]
+def plot_over_line(mesh, line=linspace(0, 2, 200)):
+    #values = [probe_location_from_nodes(mesh, 'displacement', x, 0) for x in line]
+    #eps = [probe_location_from_element(mesh, 'strain', x, 0) for x in line]
     sigma = [probe_location_from_element(mesh, 'stress', x, 0) for x in line]
 
-    x_values = [value[0] if not type(value) == float else math.nan for value in values]
-    y_values = [value[1] if not type(value) == float else math.nan for value in values]
-    eps11_values = [value[0] if not type(value) == float else math.nan for value in eps]
+    #x_values = [value[0] if not type(value) == float else math.nan for value in values]
+    #y_values = [value[1] if not type(value) == float else math.nan for value in values]
+    #eps11_values = [value[0] if not type(value) == float else math.nan for value in eps]
     sigma11_values = [value[0] if not type(value) == float else math.nan for value in sigma]
-    sigma22_values = [value[1] if not type(value) == float else math.nan for value in sigma]
+    #sigma22_values = [value[1] if not type(value) == float else math.nan for value in sigma]
 
     # plot_graph(line, x_values, 'displacement x')
     # plot_graph(line, y_values, 'displacement y')
