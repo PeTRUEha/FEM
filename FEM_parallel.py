@@ -89,22 +89,26 @@ class EquationSystem():
 
     @print_execution_time("Fixating conditions application")
     def apply_fixating_conditions(self, mesh):
-        """Fixing in place all nodes in curves 1 and 3"""
+        """Fixing in place all nodes in curve 1 by x and curve 3 by y"""
         K = self.matrix
         R = self.rhs
+
+
+        indices_to_fix =[]
         for edge in mesh.curves[1].edges:
             for node in edge.nodes:
-                K[2 * node.ID, :] = 0
-                K[:, 2 * node.ID] = 0
-                K[2 * node.ID, 2 * node.ID] = 1
-                R[2 * node.ID] = 0
+                indices_to_fix.append(2 * node.ID)
 
         for edge in mesh.curves[3].edges:
             for node in edge.nodes:
-                K[2 * node.ID + 1, :] = 0
-                K[:, 2 * node.ID + 1] = 0
-                K[2 * node.ID + 1, 2 * node.ID + 1] = 1
-                R[2 * node.ID + 1] = 0
+                indices_to_fix.append(2 * node.ID + 1)
+
+        for index in indices_to_fix:
+            K[index, :] = 0
+        for index in indices_to_fix:
+            K[:, index] = 0
+            K[index, index] = 1
+            R[index] = 0
 
 
 def fix_in_place(K, R, node, how='x'):
@@ -164,6 +168,6 @@ def main_serial():
 if __name__ == "__main__":
     mesh = main_parallel()
     print()
-    mesh = main_serial()
+    #mesh = main_serial()
     plot_over_line(mesh)
 
