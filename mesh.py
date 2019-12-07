@@ -8,11 +8,11 @@ import networkx as nx
 import itertools
 import matplotlib.pyplot as plt
 from scipy.sparse import coo_matrix
-
+from multiprocessing import Pool
 from typing import List, Dict, Iterable
 
 from utils import triangle_area_2d, is_to_the_left, WrongElementTypeError, print_execution_time
-from constants import LAMBDA, MU, Ntr
+from constants import LAMBDA, MU, Ntr, N_PROCESSES
 
 
 class Mesh:
@@ -36,6 +36,26 @@ class Mesh:
     def add_curves(self, curves):
         for curve in curves.values():
             self.curves.update({curve.name: curve})
+
+    @print_execution_time('Writing arrays into elements and nodes')
+    def calculate_array_values(self, U):
+        for i in range(len(self.nodes)):
+            self.nodes[i].values['displacement'] = np.array([U[2 * i], U[2 * i + 1]])
+
+        for el in self.elements.values():
+            el.values['strain'] = el.get_strain()
+            el.values['stress'] = el.get_stress()
+
+
+    @print_execution_time('Parallel writing arrays into elements and nodes')
+    def parallel_calculate_array_values(self, U):
+        for i in range(len(self.nodes)):
+            self.nodes[i].values['displacement'] = np.array([U[2 * i], U[2 * i + 1]])
+
+        with Pool(N_PROCESSES) as pool:
+            for el in self.elements.values():
+                el.values['strain'] = el.get_strain()
+                el.values['stress'] = el.get_stress()
 
 
 class Node:
@@ -209,7 +229,7 @@ class Element:
 
         U = matrix([[u1], [v1], [u2], [v2], [u3], [v3]])
         Epsilon = B * U
-        self.values['strain'] = Epsilon.T.reshape(-1, ).tolist()[0]
+        return Epsilon.T.reshape(-1, ).tolist()[0]
 
     def get_stress(self):
         D = matrix([[LAMBDA + 2 * MU, LAMBDA, 0],
@@ -217,7 +237,7 @@ class Element:
                     [0, 0, MU]])
         eps = matrix(np.array(self.values['strain'])).T
         sigma = D * eps
-        self.values['stress'] = sigma.T.reshape(-1, ).tolist()[0]
+        return sigma.T.reshape(-1, ).tolist()[0]
 
 
 def probe_location_from_nodes(mesh, kind, x, y):

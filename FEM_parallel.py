@@ -132,14 +132,6 @@ def assemble_equation_system(mesh: Mesh, parallel: bool):
     return eq_system.matrix, eq_system.rhs
 
 
-@print_execution_time('Writing arrays into elements and nodes')
-def calculate_array_values(U, mesh):
-    for i in range(len(mesh.nodes)):
-        mesh.nodes[i].values['displacement'] = np.array([U[2 * i], U[2 * i + 1]])
-
-    for el in mesh.elements.values():
-        el.get_strain()
-        el.get_stress()
 
 
 @print_execution_time('Total parallel')
@@ -147,7 +139,7 @@ def main_parallel():
     mesh = configure_geometry()
     K, R = assemble_equation_system(mesh, parallel=True)
     U = print_execution_time("System solution with spsolve")(spsolve)(K, R)
-    calculate_array_values(U, mesh)
+    mesh.calculate_array_values(U)
     return mesh
 
 
@@ -156,7 +148,7 @@ def main_serial():
     mesh = configure_geometry()
     K, R = assemble_equation_system(mesh, parallel=False)
     U = print_execution_time("System solution with spsolve")(spsolve)(K, R)
-    calculate_array_values(U, mesh)
+    mesh.calculate_array_values(U)
     return mesh
 
 if __name__ == "__main__":
