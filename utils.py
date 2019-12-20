@@ -1,6 +1,6 @@
 import datetime
 from math import floor
-from typing import List
+from typing import List, Dict
 
 from numpy import matrix, linalg
 
@@ -47,3 +47,11 @@ def split_list(list_to_split: List, n_parts) -> List[List]:
         part = list_to_split[int(floor(i / n_parts * length)): int(floor((i + 1) / n_parts * length))]
         parts.append(part)
     return parts
+
+
+def invert_dict(dictionary: Dict) -> Dict:
+    inv_map = {}
+    for k, v in dictionary.items():
+        inv_map[v] = inv_map.get(v, [])
+        inv_map[v].append(k)
+    return inv_map

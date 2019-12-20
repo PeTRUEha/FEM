@@ -3,13 +3,13 @@ from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from multiprocessing.pool import Pool
 from itertools import repeat
-
+import networkx as nx
 from geometry_configuration import configure_geometry
 from utils import *
 from mesh import Element, local_stiffness, Mesh
 from plots import plot_over_line
 from constants import N_PROCESSES
-from utils import split_list
+from utils import split_list, invert_dict
 
 
 class GlobalStiffness(sparse.lil_matrix):
@@ -45,6 +45,27 @@ def parallel_global_stiffness(mesh) -> GlobalStiffness:
     with Pool(N_PROCESSES) as pool:
         all_args = zip(split_list(list(mesh.elements.values()), N_PROCESSES), repeat(shape))
         results = pool.starmap(GlobalStiffness.from_elements, all_args)
+    K = GlobalStiffness(shape).tocsr()
+    for result in results:
+        K += result
+    K = K.tolil()
+#    print('conversion done')
+    return K
+
+@print_execution_time('Parallel colored global stiffness construction')
+def parallel_global_stiffness_colored(mesh) -> GlobalStiffness:
+    N = len(mesh.nodes)
+    shape = (2 * N, 2 * N)
+    colors = nx.greedy_color(mesh.graph)
+    element_ids_by_color = invert_dict(colors)
+    elements_by_color = {}
+    for color in element_ids_by_color:
+        elements_by_color[color] = [mesh.elements[ID] for ID in element_ids_by_color[color]]
+
+    with Pool(N_PROCESSES) as pool:
+        all_args = zip(elements_by_color.values(), repeat(shape))
+        results = pool.starmap(GlobalStiffness.from_elements, all_args)
+
     K = GlobalStiffness(shape).tocsr()
     for result in results:
         K += result
@@ -110,7 +131,7 @@ def get_indices_to_fix(mesh):
 def assemble_equation_system(mesh: Mesh, parallel: bool):
     # Заполнение матрицы жёсткости
     if parallel:
-        K = parallel_global_stiffness(mesh)
+        K = parallel_global_stiffness_colored(mesh)
     else:
         K = global_stiffness(mesh)
     R = rhs(mesh)

@@ -36,6 +36,7 @@ class Mesh:
         for curve in curves.values():
             self.curves.update({curve.name: curve})
 
+    @print_execution_time('graph construction')
     def build_element_connection_graph(self):
         incidence_matrix = self.build_incidence_matrix()
         adjasency_matrix = incidence_matrix.dot(incidence_matrix.T)
