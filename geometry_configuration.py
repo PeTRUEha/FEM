@@ -1,8 +1,9 @@
 import re
-
+import scipy.sparse as sp
 from constants import RSplit, FILENAME, P1, P2
 from mesh import Node, Element, Curve, Edge, Mesh
 from utils import print_execution_time
+
 
 
 class MeshReader:
@@ -55,12 +56,14 @@ class MeshReader:
 
     def read_elements(self):
         line = next(self.file)
+        node_count = 0
         while line:
             items = line.split(',')
             if len(items) == 1:
                 break
             else:
-                n = int(items[0])
+                n = node_count
+                node_count += 1
                 nodes_old_ids = map(int, items[1:])
                 element_nodes = [self.nodes[id] for id in nodes_old_ids]
                 self.elements.append(Element(n, element_nodes))
@@ -84,7 +87,7 @@ class MeshReader:
         self.edges = {ID: edge for ID, edge in self.edges.items() if edge.is_border()}
 
 
-    #0 - внутренняя поверхность
+#0 - внутренняя поверхность
     #1 - поверхность слева-сверху
     #2 - внешняя поверхность
     #3 - поверхность справа-снизу

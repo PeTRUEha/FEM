@@ -5,9 +5,7 @@ import math
 import numpy as np
 from numpy import matrix
 import networkx as nx
-import itertools
-import matplotlib.pyplot as plt
-from scipy.sparse import coo_matrix
+import scipy.sparse as sp
 from multiprocessing import Pool
 from typing import List, Dict, Iterable
 
@@ -16,13 +14,14 @@ from constants import LAMBDA, MU, Ntr, N_PROCESSES
 
 
 class Mesh:
-    def __init__(self, nodes: Iterable[Node], elements: List[Element], edges):
+    def __init__(self, nodes: Iterable[Node], elements: List[Element], edges: Dict[Edge]):
         self.nodes = dict()
         self.add_nodes(nodes)
         self.edges = edges
         self.elements = dict()
         self.add_elements(elements)
         self.curves = dict()
+        self.graph = self.build_element_connection_graph()
 
     def add_nodes(self, nodes):
         for node in nodes:
@@ -37,6 +36,20 @@ class Mesh:
         for curve in curves.values():
             self.curves.update({curve.name: curve})
 
+    def build_element_connection_graph(self):
+        incidence_matrix = self.build_incidence_matrix()
+        adjasency_matrix = incidence_matrix.dot(incidence_matrix.T)
+        graph = nx.from_scipy_sparse_matrix(adjasency_matrix)
+        graph.remove_edges_from(nx.selfloop_edges(graph))
+        return graph
+
+    def build_incidence_matrix(self):
+        incidence_matrix = sp.lil_matrix((len(self.elements), len(self.nodes)))
+        for element in self.elements.values():
+            for node in element.nodes:
+                incidence_matrix[element.ID, node.ID] = 1
+
+        return incidence_matrix
     @print_execution_time('Calculation of strains and stresses')
     def calculate_array_values(self, U):
         for i in range(len(self.nodes)):
