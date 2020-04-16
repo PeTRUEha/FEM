@@ -8,7 +8,7 @@ from typing import List, Tuple
 from geometry_configuration import configure_geometry
 from utils import *
 from mesh import Element, local_stiffness, Mesh
-from plots import plot_over_line
+from plots import plot_over_line, visualize
 from constants import N_PROCESSES
 from utils import split_list
 
@@ -171,7 +171,6 @@ def main_serial():
 
 if __name__ == "__main__":
     mesh = main_parallel()
+    visualize(mesh)
     print()
-    mesh = main_serial()
-    plot_over_line(mesh)
 
