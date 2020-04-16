@@ -31,12 +31,12 @@ def plot_graph(line, values, title):
     plt.show()
 
 
-def visualize():
+def visualize(mesh):
     X = linspace(0, 2, 50)
     Y = linspace(0, 2, 50)
 
-    values = [[probe_location_from_nodes('displacement', x, y) for x in X] for y in Y]
-    eps = [[probe_location_from_element('strain', x, y) for x in X] for y in Y]
+    values = [[probe_location_from_nodes(mesh, 'displacement', x, y) for x in X] for y in Y]
+    eps = [[probe_location_from_element(mesh, 'strain', x, y) for x in X] for y in Y]
 
     x_values = [[value[0] if not type(value) == float else math.nan for value in values[i]] for i in range(50)]
     y_values = [[value[1] if not type(value) == float else math.nan for value in values[i]] for i in range(50)]

@@ -3,16 +3,16 @@ from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from multiprocessing.pool import Pool
 from itertools import repeat
+from typing import List, Tuple
 
 from geometry_configuration import configure_geometry
 from utils import *
 from mesh import Element, local_stiffness, Mesh
-from plots import plot_over_line
+from plots import plot_over_line, visualize
 from constants import N_PROCESSES
 from utils import split_list
 
-
-class GlobalStiffness(sparse.lil_matrix):
+class GlobalStiffnessLil(sparse.lil_matrix):
     def update(self, element: Element):
         K_local = local_stiffness(element)
         for i, j in np.ndindex((3, 3)):
@@ -23,29 +23,60 @@ class GlobalStiffness(sparse.lil_matrix):
 
     @staticmethod
     def from_elements(elements: List[Element], shape):
-        K = GlobalStiffness(shape)
+        K = GlobalStiffnessLil(shape)
         for element in elements:
             K.update(element)
         K_coo = K.tocoo()
         return K_coo
 
+class GlobalStiffnessCoo(sparse.coo_matrix):
+    def __init__(self, elem_count, shape: Tuple[int, int]):
+        sparse.coo_matrix.__init__(self, shape)
+        array_len = elem_count * 9 * 4
+        self.row = np.zeros(array_len)
+        self.col = np.zeros(array_len)
+        self.data = np.zeros(array_len)
+        self.last_array_index = 0
+
+    def update(self, element: Element):
+        K_local = local_stiffness(element)
+        for i, j in np.ndindex((3, 3)):
+            self[2 * element.nodes[i].ID, 2 * element.nodes[j].ID] = K_local[2 * i, 2 * j]
+            self[2 * element.nodes[i].ID + 1, 2 * element.nodes[j].ID] = K_local[2 * i + 1, 2 * j]
+            self[2 * element.nodes[i].ID, 2 * element.nodes[j].ID + 1] = K_local[2 * i, 2 * j + 1]
+            self[2 * element.nodes[i].ID + 1, 2 * element.nodes[j].ID + 1] = K_local[2 * i + 1, 2 * j + 1]
+
+    def __setitem__(self, key: Tuple[int, int], value):
+        i, j = key
+        self.row[self.last_array_index] = i
+        self.col[self.last_array_index] = j
+        self.data[self.last_array_index] = value
+        self.last_array_index += 1
+
+    @staticmethod
+    def from_elements(elements: List[Element], shape):
+        K = GlobalStiffnessCoo(len(elements), shape)
+        for element in elements:
+            K.update(element)
+        return K
 
 @print_execution_time('Serial global stiffness construction')
 def global_stiffness(mesh: Mesh):
     N = len(mesh.nodes)
-    K = GlobalStiffness((2 * N, 2 * N))
+    K = GlobalStiffnessCoo(len(mesh.elements), (2 * N, 2 * N))
     for element in mesh.elements.values():
         K.update(element)
+    K = K.tolil()
     return K
 
 @print_execution_time('Parallel global stiffness construction')
-def parallel_global_stiffness(mesh) -> GlobalStiffness:
+def parallel_global_stiffness(mesh) -> GlobalStiffnessLil:
     N = len(mesh.nodes)
     shape = (2 * N, 2 * N)
     with Pool(N_PROCESSES) as pool:
         all_args = zip(split_list(list(mesh.elements.values()), N_PROCESSES), repeat(shape))
-        results = pool.starmap(GlobalStiffness.from_elements, all_args)
-    K = GlobalStiffness(shape).tocsr()
+        results = pool.starmap(GlobalStiffnessCoo.from_elements, all_args)
+    K = sparse.csr_matrix(shape)
     for result in results:
         K += result
     K = K.tolil()
@@ -140,7 +171,6 @@ def main_serial():
 
 if __name__ == "__main__":
     mesh = main_parallel()
+    visualize(mesh)
     print()
-    mesh = main_serial()
-    plot_over_line(mesh)
 
