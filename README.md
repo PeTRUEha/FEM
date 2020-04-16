@@ -20,3 +20,5 @@ Total parallel took 7.17s
 ```
 ![Screenshot](images/eps11.png)
 ![Screenshot](images/abs_displacement.png)
+
+Полученный результат совпал с результатом, вычисленным по аналитической формуле.
